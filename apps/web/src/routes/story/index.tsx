@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState } from "@/ui";
+import { ComponentStoryBuilderPanel } from "@/modules/component-story-builder";
 
 export const Route = createFileRoute("/story/")({
   component: ComponentStoryPage,
@@ -7,9 +7,8 @@ export const Route = createFileRoute("/story/")({
 
 function ComponentStoryPage() {
   return (
-    <EmptyState
-      title="Component Story Builder"
-      description="Describe your component and the agent will generate Storybook stories."
-    />
+    <div className="h-full p-4">
+      <ComponentStoryBuilderPanel />
+    </div>
   );
 }
