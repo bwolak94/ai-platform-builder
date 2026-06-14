@@ -1,0 +1,21 @@
+{
+  "name": "evals",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval:form": "tsx runner.ts --module=form",
+    "eval:layout": "tsx runner.ts --module=layout",
+    "eval:all": "tsx runner.ts --module=form && tsx runner.ts --module=layout",
+    "eval:compare": "tsx compare.ts"
+  },
+  "dependencies": {
+    "@ai-builder/schemas": "workspace:*",
+    "@ai-builder/serializers": "workspace:*",
+    "braintrust": "^0.0.160",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

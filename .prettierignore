@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+.wrangler/
+.turbo/
+coverage/
+pnpm-lock.yaml
+*.snap
+# TOML has no prettier parser
+*.toml

@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.wrangler/
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
+
+# Turbo cache
+.turbo/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Eval results (keep .gitkeep, ignore actual result files)
+evals/results/*.json
+
+# Snapshots & tooling
+.snapshots/
+.claude/
+docs/
+prd.md

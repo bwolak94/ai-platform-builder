@@ -1,0 +1,51 @@
+{
+  "name": "ai-platform-builder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "type-check": "turbo type-check",
+    "test": "turbo test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky",
+    "eval:form": "pnpm --filter evals eval:form",
+    "eval:layout": "pnpm --filter evals eval:layout",
+    "eval:all": "pnpm --filter evals eval:all",
+    "eval:compare": "pnpm --filter evals eval:compare",
+    "index:corpus": "tsx apps/worker/src/rag/index-corpus.ts"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react-refresh": "^0.4.16",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.11",
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.6.9",
+    "turbo": "^2.3.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.18.1"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --max-warnings=0 --cache --cache-location node_modules/.cache/.eslintcache",
+      "prettier --write"
+    ],
+    "*.{json,md,yaml,css}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

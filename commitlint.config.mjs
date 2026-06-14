@@ -1,0 +1,32 @@
+export default {
+  extends: ["@commitlint/config-conventional"],
+  rules: {
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "form-builder",
+        "layout-builder",
+        "api-builder",
+        "db-builder",
+        "email-builder",
+        "story-builder",
+        "i18n-manager",
+        "e2e-generator",
+        "agent",
+        "rag",
+        "evals",
+        "schemas",
+        "serializers",
+        "types",
+        "docker",
+        "ci",
+        "deps",
+        "docs",
+        "config",
+      ],
+    ],
+    "subject-case": [2, "always", "lower-case"],
+    "header-max-length": [2, "always", 100],
+  },
+};

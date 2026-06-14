@@ -1,0 +1,69 @@
+[
+  {
+    "id": "form-001",
+    "input": "Create a contact form with name, email, message and a send button",
+    "expectedFieldTypes": ["text", "email", "textarea"],
+    "expectedFieldCount": { "min": 3, "max": 5 },
+    "mustHaveValidation": ["email"],
+    "mustHaveSubmit": true
+  },
+  {
+    "id": "form-002",
+    "input": "Add a phone number field after the email field",
+    "initialSchemaId": "form-001-result",
+    "expectedFieldTypes": ["tel"],
+    "expectedPosition": "after-email"
+  },
+  {
+    "id": "form-003",
+    "input": "Make the name field required and add a minimum length of 2 characters",
+    "initialSchemaId": "form-001-result",
+    "expectedValidation": { "fieldName": "name", "rules": ["required", "minLength"] }
+  },
+  {
+    "id": "form-004",
+    "input": "Create a user registration form with username, email, password, confirm password, and a country dropdown",
+    "expectedFieldTypes": ["text", "email", "password", "select"],
+    "expectedFieldCount": { "min": 4, "max": 6 },
+    "mustHaveValidation": ["email", "password"]
+  },
+  {
+    "id": "form-005",
+    "input": "Add a terms and conditions checkbox that is required",
+    "initialSchemaId": "form-004-result",
+    "expectedFieldTypes": ["checkbox"],
+    "mustHaveValidation": ["terms"]
+  },
+  {
+    "id": "form-006",
+    "input": "Create a payment form with card number, expiry date, CVV, and cardholder name",
+    "expectedFieldTypes": ["text", "text", "text", "text"],
+    "expectedFieldCount": { "min": 4, "max": 6 }
+  },
+  {
+    "id": "form-007",
+    "input": "Remove the message field from the contact form",
+    "initialSchemaId": "form-001-result",
+    "expectedRemovedField": "message"
+  },
+  {
+    "id": "form-008",
+    "input": "Reorder the fields so the email comes first, then name, then message",
+    "initialSchemaId": "form-001-result",
+    "expectedOrder": ["email", "name", "message"]
+  },
+  {
+    "id": "form-009",
+    "input": "Create a survey form with 3 questions using radio buttons for satisfaction ratings",
+    "expectedFieldTypes": ["radio"],
+    "expectedFieldCount": { "min": 3, "max": 6 }
+  },
+  {
+    "id": "form-010",
+    "input": "Create a newsletter signup form — just email and a subscribe button",
+    "expectedFieldTypes": ["email"],
+    "expectedFieldCount": { "min": 1, "max": 3 },
+    "mustHaveValidation": ["email"],
+    "mustHaveSubmit": true
+  }
+]
