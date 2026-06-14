@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared packages
+        run: pnpm turbo build --filter=@ai-builder/schemas --filter=@ai-builder/types --filter=@ai-builder/serializers
+
       - name: Lint
         run: pnpm lint
 
