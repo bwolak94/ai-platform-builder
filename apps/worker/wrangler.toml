@@ -1,0 +1,21 @@
+name = "ai-builder"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "AGENT"
+class_name = "BuilderAgent"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["BuilderAgent"]
+
+[vars]
+APP_ENV = "development"
+
+# Secrets — set via: wrangler secret put KEY
+# OPENAI_API_KEY
+# UPSTASH_URL
+# UPSTASH_TOKEN
+# BRAINTRUST_API_KEY

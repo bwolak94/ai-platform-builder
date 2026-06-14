@@ -1,0 +1,64 @@
+[
+  {
+    "id": "layout-001",
+    "input": "Create a hero section with a big headline, subtitle and a CTA button",
+    "expectedTags": ["section", "h1", "p", "button"],
+    "expectedClasses": { "section": ["py-"], "h1": ["text-"], "button": ["px-", "py-", "rounded"] }
+  },
+  {
+    "id": "layout-002",
+    "input": "Add a 3-column card grid below the hero",
+    "initialTreeId": "layout-001-result",
+    "expectedTags": ["div", "article"],
+    "expectedClasses": { "div": ["grid", "grid-cols-"] },
+    "expectedChildCount": { "min": 3 }
+  },
+  {
+    "id": "layout-003",
+    "input": "Add a navigation bar at the top with a logo, menu links, and a sign-up button",
+    "expectedTags": ["nav", "button"],
+    "mustHaveResponsive": true
+  },
+  {
+    "id": "layout-004",
+    "input": "Create a two-column layout with a sidebar on the left and main content on the right",
+    "expectedTags": ["main", "aside"],
+    "expectedClasses": { "div": ["grid", "lg:grid-cols-"] }
+  },
+  {
+    "id": "layout-005",
+    "input": "Add a footer with company name, copyright, and social media links",
+    "expectedTags": ["footer"],
+    "mustHaveSemanticTag": "footer"
+  },
+  {
+    "id": "layout-006",
+    "input": "Apply a dark slate color scheme with blue accent colors",
+    "initialTreeId": "layout-003-result",
+    "expectedClassesPresent": ["slate-", "blue-"]
+  },
+  {
+    "id": "layout-007",
+    "input": "Make the hero section responsive — stack vertically on mobile, side by side on desktop",
+    "initialTreeId": "layout-001-result",
+    "mustHaveResponsive": true,
+    "expectedClasses": { "div": ["md:flex", "lg:grid-cols-"] }
+  },
+  {
+    "id": "layout-008",
+    "input": "Add a pricing section with 3 pricing cards, each with a title, price, features list, and buy button",
+    "expectedTags": ["section", "article", "ul", "li", "button"],
+    "expectedChildCount": { "min": 3 }
+  },
+  {
+    "id": "layout-009",
+    "input": "Create a testimonials section with a heading and 3 testimonial cards",
+    "expectedTags": ["section", "blockquote"],
+    "expectedChildCount": { "min": 3 }
+  },
+  {
+    "id": "layout-010",
+    "input": "Nest the hero headline and subtitle inside a container div with max-width",
+    "expectedClasses": { "div": ["max-w-", "mx-auto"] }
+  }
+]
