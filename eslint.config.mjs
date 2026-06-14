@@ -51,5 +51,19 @@ export default ts.config(
       "react-hooks/exhaustive-deps": "off",
       "react-refresh/only-export-components": "off",
     },
+  },
+  // Test files — vitest matchers (expect.any, expect.stringContaining) return `any` by design
+  {
+    files: ["**/*.test.ts", "**/*.test.tsx"],
+    rules: {
+      "@typescript-eslint/no-unsafe-assignment": "off",
+    },
+  },
+  // shadcn/ui generated files — they intentionally export constants alongside components
+  {
+    files: ["apps/web/src/components/ui/**/*.tsx"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
   }
 );
