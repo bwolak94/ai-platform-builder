@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState } from "@/ui";
+import { I18nManagerPanel } from "@/modules/i18n-manager";
 
 export const Route = createFileRoute("/i18n/")({
   component: I18nManagerPage,
@@ -7,9 +7,8 @@ export const Route = createFileRoute("/i18n/")({
 
 function I18nManagerPage() {
   return (
-    <EmptyState
-      title="i18n Manager"
-      description="Manage your translation keys and the agent will help you generate translations."
-    />
+    <div className="h-full p-4">
+      <I18nManagerPanel />
+    </div>
   );
 }

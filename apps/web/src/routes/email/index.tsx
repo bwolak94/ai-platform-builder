@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState } from "@/ui";
+import { EmailBuilderPanel } from "@/modules/email-template-builder";
 
 export const Route = createFileRoute("/email/")({
   component: EmailTemplatePage,
@@ -7,9 +7,8 @@ export const Route = createFileRoute("/email/")({
 
 function EmailTemplatePage() {
   return (
-    <EmptyState
-      title="Email Template Builder"
-      description="Describe your email template and the agent will generate it for you."
-    />
+    <div className="h-full p-4">
+      <EmailBuilderPanel />
+    </div>
   );
 }

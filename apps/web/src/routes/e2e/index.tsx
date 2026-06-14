@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState } from "@/ui";
+import { E2eTestGeneratorPanel } from "@/modules/e2e-test-generator";
 
 export const Route = createFileRoute("/e2e/")({
   component: E2eTestPage,
@@ -7,9 +7,8 @@ export const Route = createFileRoute("/e2e/")({
 
 function E2eTestPage() {
   return (
-    <EmptyState
-      title="E2E Test Generator"
-      description="Describe your user flows and the agent will generate Playwright tests."
-    />
+    <div className="h-full p-4">
+      <E2eTestGeneratorPanel />
+    </div>
   );
 }
