@@ -1,0 +1,60 @@
+name: Nightly Eval
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC every night
+  workflow_dispatch: # manual trigger
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    environment: eval
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build --filter @ai-builder/schemas --filter @ai-builder/serializers
+
+      - name: Run eval — Form Builder
+        id: eval_form
+        run: pnpm eval:form
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          AGENT_URL: ${{ secrets.AGENT_URL }}
+          GIT_SHA: ${{ github.sha }}
+
+      - name: Run eval — Layout Builder
+        id: eval_layout
+        run: pnpm eval:layout
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+          AGENT_URL: ${{ secrets.AGENT_URL }}
+          GIT_SHA: ${{ github.sha }}
+
+      - name: Compare with previous run
+        if: always()
+        run: pnpm eval:compare
+
+      - name: Upload result artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.sha }}
+          path: evals/results/*.json
+          retention-days: 90
