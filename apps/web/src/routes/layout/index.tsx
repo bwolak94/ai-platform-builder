@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState } from "@/ui";
+import { LayoutBuilderPanel } from "@/modules/layout-builder";
 
 export const Route = createFileRoute("/layout/")({
   component: LayoutBuilderPage,
@@ -7,9 +7,8 @@ export const Route = createFileRoute("/layout/")({
 
 function LayoutBuilderPage() {
   return (
-    <EmptyState
-      title="Layout Builder"
-      description="Describe the page layout you want to create and the agent will build it for you."
-    />
+    <div className="h-full p-4">
+      <LayoutBuilderPanel />
+    </div>
   );
 }
