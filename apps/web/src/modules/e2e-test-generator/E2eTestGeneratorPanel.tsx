@@ -5,13 +5,10 @@ import { useE2eState } from "./hooks/useE2eState";
 import { useE2eTools } from "./hooks/useE2eTools";
 import { TestCaseList } from "./TestCaseList";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
-interface E2eTestGeneratorPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
-
-export function E2eTestGeneratorPanel({ onToolCall: _onToolCall }: E2eTestGeneratorPanelProps) {
+export function E2eTestGeneratorPanel() {
   const { testFile, setTestFile } = useE2eState();
   const tools = useE2eTools(testFile, setTestFile);
 
@@ -22,12 +19,12 @@ export function E2eTestGeneratorPanel({ onToolCall: _onToolCall }: E2eTestGenera
       if (typeof handler === "function") {
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
-      return Promise.resolve({ error: "Unknown tool: " + call.toolName });
+      return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
     },
     [tools]
   );
 
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   const totalSteps = testFile.testCases.reduce((sum, tc) => sum + tc.steps.length, 0);
 

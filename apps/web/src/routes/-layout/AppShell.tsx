@@ -1,20 +1,27 @@
+import { useCallback } from "react";
 import { Outlet, useNavigate, useLocation } from "@tanstack/react-router";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { useMode } from "@/hooks";
 import { useBuilderAgent } from "@/hooks";
+import { useToolDispatch } from "@/context/toolDispatch";
 import { ThemeToggle } from "@/ui";
 import { ChatPanel } from "../-components/ChatPanel";
 import { ModeSwitcher } from "../-components/ModeSwitcher";
 import { PreviewFrame } from "../-components/PreviewFrame";
 import type { BuilderMode } from "@/types";
+import type { ToolCall } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
 export function AppShell() {
   const { mode, setMode } = useMode();
   const navigate = useNavigate();
   const location = useLocation();
+  const { dispatchRef } = useToolDispatch();
+
+  const onToolCall = useCallback((call: ToolCall) => dispatchRef.current(call), [dispatchRef]);
 
   const { messages, input, isLoading, activeToolCall, setInput, handleSubmit } = useBuilderAgent({
     mode,
+    onToolCall,
   });
 
   function handleModeChange(newMode: BuilderMode) {

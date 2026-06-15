@@ -22,7 +22,7 @@ export interface UseBuilderAgentReturn {
   messages: ChatMessage[];
   input: string;
   setInput: (value: string) => void;
-  handleSubmit: (e?: React.FormEvent) => void;
+  handleSubmit: (e?: React.SyntheticEvent) => void;
   isLoading: boolean;
   activeToolCall: string | null;
 }

@@ -6,13 +6,10 @@ import { useI18nState } from "./hooks/useI18nState";
 import { useI18nTools } from "./hooks/useI18nTools";
 import { KeyList } from "./KeyList";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
-interface I18nManagerPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
-
-export function I18nManagerPanel({ onToolCall: _onToolCall }: I18nManagerPanelProps) {
+export function I18nManagerPanel() {
   const { store, setStore } = useI18nState();
   const tools = useI18nTools(store, setStore);
 
@@ -23,12 +20,12 @@ export function I18nManagerPanel({ onToolCall: _onToolCall }: I18nManagerPanelPr
       if (typeof handler === "function") {
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
-      return Promise.resolve({ error: "Unknown tool: " + call.toolName });
+      return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
     },
     [tools]
   );
 
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   const missingCount = store.keys.filter(
     (k) =>

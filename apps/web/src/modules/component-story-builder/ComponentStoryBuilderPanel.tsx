@@ -5,15 +5,10 @@ import { useStoryState } from "./hooks/useStoryState";
 import { useStoryTools } from "./hooks/useStoryTools";
 import { VariantList } from "./VariantList";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
-interface ComponentStoryBuilderPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
-
-export function ComponentStoryBuilderPanel({
-  onToolCall: _onToolCall,
-}: ComponentStoryBuilderPanelProps) {
+export function ComponentStoryBuilderPanel() {
   const { storyFile, setStoryFile } = useStoryState();
   const tools = useStoryTools(storyFile, setStoryFile);
 
@@ -24,12 +19,12 @@ export function ComponentStoryBuilderPanel({
       if (typeof handler === "function") {
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
-      return Promise.resolve({ error: "Unknown tool: " + call.toolName });
+      return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
     },
     [tools]
   );
 
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   return (
     <div className="flex h-full flex-col gap-3">

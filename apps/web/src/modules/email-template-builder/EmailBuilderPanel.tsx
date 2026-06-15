@@ -6,19 +6,16 @@ import { useEmailState } from "./hooks/useEmailState";
 import { useEmailTools } from "./hooks/useEmailTools";
 import { SectionList } from "./SectionList";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
 type ClientMode = "desktop" | "mobile" | "outlook";
 
 interface EmailBuilderPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
   onClientModeChange?: (mode: ClientMode) => void;
 }
 
-export function EmailBuilderPanel({
-  onToolCall: _onToolCall,
-  onClientModeChange,
-}: EmailBuilderPanelProps) {
+export function EmailBuilderPanel({ onClientModeChange }: EmailBuilderPanelProps) {
   const { template, setTemplate } = useEmailState();
   const tools = useEmailTools(template, setTemplate);
   const [clientMode, setClientMode] = useState<ClientMode>("desktop");
@@ -30,12 +27,12 @@ export function EmailBuilderPanel({
       if (typeof handler === "function") {
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
-      return Promise.resolve({ error: "Unknown tool: " + call.toolName });
+      return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
     },
     [tools]
   );
 
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   function switchMode(mode: ClientMode) {
     setClientMode(mode);

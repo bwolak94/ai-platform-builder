@@ -19,5 +19,12 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+    proxy: {
+      "/agents": {
+        target: "http://localhost:8787",
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
 });
