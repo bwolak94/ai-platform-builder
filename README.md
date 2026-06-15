@@ -661,8 +661,3 @@ pnpm --filter @ai-builder/web exec eslint src/modules/layout-builder --max-warni
 | Monorepo tooling        | pnpm workspaces + Turborepo                        | Efficient installs (hard links), cached builds, incremental task pipelines across packages              |
 
 ---
-
-<p align="center">
-  Built following the <strong>AI Engineering Fundamentals</strong> pattern by Scott Moss (Frontend Masters)<br/>
-  <em>Agent → Client-Side Tools → Eval Harness → Improvement Loop</em>
-</p>

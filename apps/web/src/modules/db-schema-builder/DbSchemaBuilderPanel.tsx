@@ -5,13 +5,10 @@ import { useDbState } from "./hooks/useDbState";
 import { useDbTools } from "./hooks/useDbTools";
 import { TableList } from "./TableList";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
-interface DbSchemaBuilderPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
-
-export function DbSchemaBuilderPanel({ onToolCall: _onToolCall }: DbSchemaBuilderPanelProps) {
+export function DbSchemaBuilderPanel() {
   const { schema, setSchema } = useDbState();
   const tools = useDbTools(schema, setSchema);
 
@@ -22,12 +19,12 @@ export function DbSchemaBuilderPanel({ onToolCall: _onToolCall }: DbSchemaBuilde
       if (typeof handler === "function") {
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
-      return Promise.resolve({ error: "Unknown tool: " + call.toolName });
+      return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
     },
     [tools]
   );
 
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   const totalColumns = schema.tables.reduce((acc, t) => acc + t.columns.length, 0);
 

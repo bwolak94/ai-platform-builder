@@ -6,5 +6,5 @@ export interface ChatPanelProps {
   isLoading: boolean;
   activeToolCall: string | null;
   onInputChange: (value: string) => void;
-  onSubmit: (e?: React.FormEvent) => void;
+  onSubmit: (e?: React.SyntheticEvent) => void;
 }

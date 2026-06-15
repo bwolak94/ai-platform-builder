@@ -5,13 +5,10 @@ import { useApiState } from "./hooks/useApiState";
 import { useApiTools } from "./hooks/useApiTools";
 import { EndpointList } from "./EndpointList";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
-interface ApiSchemaBuilderPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
-
-export function ApiSchemaBuilderPanel({ onToolCall: _onToolCall }: ApiSchemaBuilderPanelProps) {
+export function ApiSchemaBuilderPanel() {
   const { spec, setSpec } = useApiState();
   const tools = useApiTools(spec, setSpec);
 
@@ -22,12 +19,12 @@ export function ApiSchemaBuilderPanel({ onToolCall: _onToolCall }: ApiSchemaBuil
       if (typeof handler === "function") {
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
-      return Promise.resolve({ error: "Unknown tool: " + call.toolName });
+      return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
     },
     [tools]
   );
 
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   function handleDeleteEndpoint(id: string) {
     setSpec((prev) => ({ ...prev, endpoints: prev.endpoints.filter((e) => e.id !== id) }));

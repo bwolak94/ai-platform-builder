@@ -13,4 +13,5 @@ export const BUILDER_MODES: BuilderModeConfig[] = [
 
 export const DEFAULT_MODE: BuilderMode = "form";
 
-export const AGENT_URL = import.meta.env.VITE_AGENT_URL ?? "ws://localhost:8787";
+// In production set VITE_AGENT_URL; in dev leave unset so the Vite proxy (→ :8787) handles /agents/*
+export const AGENT_URL: string | undefined = import.meta.env.VITE_AGENT_URL;

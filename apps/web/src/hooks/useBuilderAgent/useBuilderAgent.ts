@@ -1,55 +1,127 @@
-import { useState } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
+import { useAgent } from "@cloudflare/agents/react";
+import { useAgentChat } from "@cloudflare/agents/ai-react";
 import { AGENT_URL } from "@/utils";
 import type {
   UseBuilderAgentOptions,
   UseBuilderAgentReturn,
   ChatMessage,
+  ToolCall,
 } from "./useBuilderAgent.types";
 
-// Full implementation in TASK-005 when @cloudflare/agents WebSocket is wired up.
-// This stub maintains the correct interface so all components compile and render.
+interface RawMessage {
+  id: string;
+  role: string;
+  content: unknown;
+}
+
+function extractContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object" && "text" in part)
+          return String((part as Record<string, unknown>).text);
+        return "";
+      })
+      .join("");
+  }
+  return "";
+}
+
+function toWsUrl(base: string): string {
+  const url = base.replace(/\/$/, "");
+  if (url.startsWith("http://")) return url.replace("http://", "ws://");
+  if (url.startsWith("https://")) return url.replace("https://", "wss://");
+  return url;
+}
+
+function normalizeMessages(msgs: RawMessage[]): ChatMessage[] {
+  return msgs
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: extractContent(m.content),
+    }));
+}
+
 export function useBuilderAgent({
   mode,
   onToolCall,
 }: UseBuilderAgentOptions): UseBuilderAgentReturn {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
+  const activeToolCallRef = useRef<string | null>(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
-  // Suppress unused variable warnings until real agent is wired up
-  void mode;
-  void onToolCall;
-  void AGENT_URL;
-  void setActiveToolCall;
+  // Break circular reference: addToolResult is returned by useAgentChat but needed inside onToolCall
+  const addToolResultRef = useRef<((p: { toolCallId: string; result: unknown }) => void) | null>(
+    null
+  );
 
-  function handleSubmit(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (!input.trim() || isLoading) return;
+  // If AGENT_URL is not set, omit host so PartySocket defaults to window.location.host
+  // and the Vite dev proxy forwards /agents/* → localhost:8787
+  const agentHost = useMemo(() => (AGENT_URL ? toWsUrl(AGENT_URL) : undefined), []);
 
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: input,
-    };
+  const agent = useAgent({
+    agent: "builder-agent",
+    ...(agentHost ? { host: agentHost } : {}),
+  });
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInput("");
-    setIsLoading(true);
+  const {
+    messages: rawMessages,
+    input,
+    setInput,
+    handleSubmit,
+    addToolResult,
+    isLoading,
+  } = useAgentChat({
+    agent,
+    onToolCall: useCallback(
+      async ({
+        toolCall,
+      }: {
+        toolCall: { toolCallId: string; toolName: string; args: unknown };
+      }) => {
+        activeToolCallRef.current = toolCall.toolName;
+        try {
+          const call: ToolCall = { toolName: toolCall.toolName, args: toolCall.args };
+          const result = onToolCall ? await onToolCall(call) : { error: "No handler registered" };
+          addToolResultRef.current?.({ toolCallId: toolCall.toolCallId, result });
+        } finally {
+          activeToolCallRef.current = null;
+        }
+      },
+      [onToolCall]
+    ),
+  });
 
-    // Stub: echo response. Replaced in TASK-005.
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: `Agent not yet connected. Received: "${userMessage.content}"`,
-        },
-      ]);
-      setIsLoading(false);
-    }, 600);
-  }
+  // Keep ref in sync so the callback above always has the latest function
+  addToolResultRef.current = addToolResult;
 
-  return { messages, input, setInput, handleSubmit, isLoading, activeToolCall };
+  // Notify the Durable Object when mode changes
+  useEffect(() => {
+    agent.send(JSON.stringify({ type: "set_mode", mode }));
+  }, [agent, mode]);
+
+  const messages = useMemo(
+    () => normalizeMessages(rawMessages as unknown as RawMessage[]),
+    [rawMessages]
+  );
+
+  return {
+    messages,
+    input,
+    setInput,
+    handleSubmit: useCallback(
+      (e?: React.SyntheticEvent) => {
+        e?.preventDefault();
+        handleSubmit(e);
+      },
+      [handleSubmit]
+    ),
+    isLoading,
+    activeToolCall: activeToolCallRef.current,
+  };
 }

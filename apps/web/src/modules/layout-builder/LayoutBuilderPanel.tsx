@@ -8,12 +8,9 @@ import { useLayoutTools } from "./hooks/useLayoutTools";
 import { ComponentTree } from "./ComponentTree";
 import { ClassEditor } from "./ClassEditor";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { LayoutNode } from "@ai-builder/schemas";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
-
-interface LayoutBuilderPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
 
 function countNodes(node: LayoutNode): number {
   if ("children" in node && node.children) {
@@ -29,7 +26,7 @@ function countContainers(node: LayoutNode): number {
   return 0;
 }
 
-export function LayoutBuilderPanel({ onToolCall: _onToolCall }: LayoutBuilderPanelProps) {
+export function LayoutBuilderPanel() {
   const { layoutTree, setLayoutTree } = useLayoutState();
   const { selectedNode, setSelectedNode } = useSelectedNode();
   const tools = useLayoutTools(layoutTree, setLayoutTree);
@@ -46,8 +43,7 @@ export function LayoutBuilderPanel({ onToolCall: _onToolCall }: LayoutBuilderPan
     [tools]
   );
 
-  // Expose handleToolCall upward via prop (parent wires this into useBuilderAgent)
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   function handleDelete(nodeId: string) {
     setLayoutTree((prev) => removeNode(prev, nodeId));

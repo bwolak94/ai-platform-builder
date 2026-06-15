@@ -8,14 +8,11 @@ import { useFormTools } from "./hooks/useFormTools";
 import { FieldList } from "./FieldList";
 import { FieldEditor } from "./FieldEditor";
 import { ExportPanel } from "./ExportPanel";
+import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { FormField } from "@ai-builder/schemas";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
-interface FormBuilderPanelProps {
-  onToolCall?: (call: ToolCall) => Promise<ToolResult>;
-}
-
-export function FormBuilderPanel({ onToolCall: _onToolCall }: FormBuilderPanelProps) {
+export function FormBuilderPanel() {
   const { formSchema, setFormSchema } = useFormState();
   const tools = useFormTools(formSchema, setFormSchema);
   const [editingField, setEditingField] = useState<FormField | null>(null);
@@ -25,7 +22,6 @@ export function FormBuilderPanel({ onToolCall: _onToolCall }: FormBuilderPanelPr
       const toolName = call.toolName as keyof typeof tools;
       const handler = tools[toolName];
       if (typeof handler === "function") {
-        // Dynamic dispatch — each handler validates its own args internally
         return (handler as (args: unknown) => Promise<ToolResult>)(call.args);
       }
       return Promise.resolve({ error: `Unknown tool: ${call.toolName}` });
@@ -33,8 +29,7 @@ export function FormBuilderPanel({ onToolCall: _onToolCall }: FormBuilderPanelPr
     [tools]
   );
 
-  // Expose handleToolCall upward via prop (parent wires this into useBuilderAgent)
-  void handleToolCall;
+  useRegisterToolDispatch(handleToolCall);
 
   function handleAddField() {
     const id = `f_${nanoid(6).toLowerCase()}`;

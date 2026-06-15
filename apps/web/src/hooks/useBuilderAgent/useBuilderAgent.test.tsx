@@ -1,14 +1,43 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useBuilderAgent } from "./useBuilderAgent";
 
+// ─── Mocks ───────────────────────────────────────────────────────────────────
+
+const mockSend = vi.fn();
+vi.mock("@cloudflare/agents/react", () => ({
+  useAgent: () => ({ send: mockSend, _pkurl: "ws://localhost/agents/builder-agent/default" }),
+}));
+
+const mockSetInput = vi.fn();
+const mockHandleSubmit = vi.fn();
+const mockAddToolResult = vi.fn();
+let mockMessages: { id: string; role: string; content: unknown }[] = [];
+let mockInput = "";
+let mockIsLoading = false;
+
+vi.mock("@cloudflare/agents/ai-react", () => ({
+  useAgentChat: ({ onToolCall }: { onToolCall?: unknown }) => ({
+    messages: mockMessages,
+    input: mockInput,
+    setInput: mockSetInput,
+    handleSubmit: mockHandleSubmit,
+    addToolResult: mockAddToolResult,
+    isLoading: mockIsLoading,
+    _onToolCall: onToolCall,
+  }),
+}));
+
+vi.mock("@/utils", () => ({ AGENT_URL: undefined }));
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
 describe("useBuilderAgent", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    vi.clearAllMocks();
+    mockMessages = [];
+    mockInput = "";
+    mockIsLoading = false;
   });
 
   it("returns the correct initial state", () => {
@@ -19,82 +48,50 @@ describe("useBuilderAgent", () => {
     expect(result.current.activeToolCall).toBeNull();
   });
 
-  it("updates input via setInput", () => {
+  it("sends set_mode to agent on mount", () => {
+    renderHook(() => useBuilderAgent({ mode: "form" }));
+    expect(mockSend).toHaveBeenCalledWith(JSON.stringify({ type: "set_mode", mode: "form" }));
+  });
+
+  it("sends updated mode when mode prop changes", () => {
+    let mode = "form" as "form" | "layout";
+    const { rerender } = renderHook(() => useBuilderAgent({ mode }));
+    mode = "layout";
+    rerender();
+    expect(mockSend).toHaveBeenCalledWith(JSON.stringify({ type: "set_mode", mode: "layout" }));
+  });
+
+  it("delegates setInput to useAgentChat", () => {
     const { result } = renderHook(() => useBuilderAgent({ mode: "form" }));
     act(() => {
       result.current.setInput("Hello agent");
     });
-    expect(result.current.input).toBe("Hello agent");
+    expect(mockSetInput).toHaveBeenCalledWith("Hello agent");
   });
 
-  it("does not submit when input is empty", () => {
+  it("calls useAgentChat handleSubmit on submit", () => {
     const { result } = renderHook(() => useBuilderAgent({ mode: "form" }));
     act(() => {
       result.current.handleSubmit();
     });
-    expect(result.current.messages).toHaveLength(0);
+    expect(mockHandleSubmit).toHaveBeenCalled();
   });
 
-  it("appends user message and sets loading on submit", () => {
+  it("calls preventDefault on the event before delegating", () => {
     const { result } = renderHook(() => useBuilderAgent({ mode: "form" }));
-
-    // setInput and handleSubmit must be separate act() calls so the state
-    // update from setInput is committed before handleSubmit reads it.
+    const preventDefault = vi.fn();
+    const fakeEvent = { preventDefault } as unknown as React.SyntheticEvent;
     act(() => {
-      result.current.setInput("Create a login form");
+      result.current.handleSubmit(fakeEvent);
     });
-    act(() => {
-      result.current.handleSubmit();
-    });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(mockHandleSubmit).toHaveBeenCalled();
+  });
 
-    expect(result.current.messages).toHaveLength(1);
-    expect(result.current.messages[0]).toMatchObject({
-      role: "user",
-      content: "Create a login form",
-    });
+  it("passes through isLoading from useAgentChat", () => {
+    mockIsLoading = true;
+    const { result } = renderHook(() => useBuilderAgent({ mode: "form" }));
     expect(result.current.isLoading).toBe(true);
-    expect(result.current.input).toBe("");
-  });
-
-  it("appends assistant stub response after delay", () => {
-    const { result } = renderHook(() => useBuilderAgent({ mode: "form" }));
-
-    act(() => {
-      result.current.setInput("Create a login form");
-    });
-    act(() => {
-      result.current.handleSubmit();
-    });
-
-    expect(result.current.isLoading).toBe(true);
-
-    act(() => {
-      vi.advanceTimersByTime(700);
-    });
-
-    expect(result.current.messages).toHaveLength(2);
-    expect(result.current.messages[1]?.role).toBe("assistant");
-    expect(result.current.isLoading).toBe(false);
-  });
-
-  it("does not submit while already loading", () => {
-    const { result } = renderHook(() => useBuilderAgent({ mode: "form" }));
-
-    act(() => {
-      result.current.setInput("First message");
-    });
-    act(() => {
-      result.current.handleSubmit();
-    });
-    act(() => {
-      result.current.setInput("Second message");
-    });
-    act(() => {
-      result.current.handleSubmit();
-    });
-
-    // Only the first message should be added
-    expect(result.current.messages).toHaveLength(1);
   });
 
   it("accepts an onToolCall callback without error", () => {
