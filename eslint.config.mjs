@@ -10,7 +10,8 @@ export default ts.config(
       "**/.wrangler/**",
       "**/node_modules/**",
       "**/.turbo/**",
-      "evals/results/**",
+      // evals/ is a standalone Node.js project with its own tsconfig and type requirements
+      "evals/**",
       // Config files at root — not part of any tsconfig project
       "*.mjs",
       "*.cjs",
