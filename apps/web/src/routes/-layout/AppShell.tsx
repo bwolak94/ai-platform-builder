@@ -6,7 +6,8 @@ import { useBuilderAgent } from "@/hooks";
 import { useToolDispatch } from "@/context/toolDispatch";
 import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext";
 import { useLayoutBuilderContext } from "@/context/layoutBuilder/LayoutBuilderContext";
-import { serializeFormDSL, serializeLayoutDSL } from "@ai-builder/serializers";
+import { useEmailBuilderContext } from "@/context/emailBuilder/EmailBuilderContext";
+import { serializeFormDSL, serializeLayoutDSL, serializeEmailDSL } from "@ai-builder/serializers";
 import { ThemeToggle } from "@/ui";
 import { ChatPanel } from "../-components/ChatPanel";
 import { ModeSwitcher } from "../-components/ModeSwitcher";
@@ -21,6 +22,7 @@ export function AppShell() {
   const { dispatchRef } = useToolDispatch();
   const { formSchema } = useFormBuilderContext();
   const { layoutTree } = useLayoutBuilderContext();
+  const { template: emailTemplate } = useEmailBuilderContext();
 
   const onToolCall = useCallback(
     (call: ToolCall) => {
@@ -50,19 +52,29 @@ export function AppShell() {
     }
   }, [formSchema, mode, sendContext]);
 
-  // Sync layout tree DSL to agent context so the layout prompt sees current state
+  // Sync layout tree DSL to agent context
   useEffect(() => {
     if (mode === "layout") {
       sendContext({ layoutTree: serializeLayoutDSL(layoutTree) });
     }
   }, [layoutTree, mode, sendContext]);
 
+  // Sync email template DSL to agent context
+  useEffect(() => {
+    if (mode === "email") {
+      sendContext({ emailTemplate: serializeEmailDSL(emailTemplate) });
+    }
+  }, [emailTemplate, mode, sendContext]);
+
   function handleModeChange(newMode: BuilderMode) {
     setMode(newMode);
     void navigate({ to: `/${newMode}` });
   }
 
-  const isPreviewVisible = location.pathname === "/form" || location.pathname === "/layout";
+  const isPreviewVisible =
+    location.pathname === "/form" ||
+    location.pathname === "/layout" ||
+    location.pathname === "/email";
 
   return (
     <div className="bg-background text-foreground flex h-screen flex-col">

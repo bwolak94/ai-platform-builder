@@ -15,9 +15,16 @@ export const SystemFontSchema = z.enum([
 
 export const EmailCtaSchema = z.object({
   label: z.string().min(1),
-  url: z.url(),
+  url: z.string().min(1),
   bgColor: HexColorSchema.nullable(),
   textColor: HexColorSchema.nullable(),
+});
+
+export const EmailColumnSchema = z.object({
+  heading: z.string().nullable(),
+  body: z.string().nullable(),
+  imageUrl: z.string().nullable(),
+  cta: EmailCtaSchema.nullable(),
 });
 
 const baseSectionFields = {
@@ -59,6 +66,11 @@ export const EmailSectionSchema = z.discriminatedUnion("type", [
     address: z.string().nullable(),
     unsubscribeUrl: z.string().nullable(),
   }),
+  z.object({
+    ...baseSectionFields,
+    type: z.literal("columns"),
+    columns: z.array(EmailColumnSchema).min(2).max(3),
+  }),
 ]);
 
 export const EmailTemplateSchema = z.object({
@@ -72,5 +84,6 @@ export const EmailTemplateSchema = z.object({
 export type HexColor = z.infer<typeof HexColorSchema>;
 export type SystemFont = z.infer<typeof SystemFontSchema>;
 export type EmailCta = z.infer<typeof EmailCtaSchema>;
+export type EmailColumn = z.infer<typeof EmailColumnSchema>;
 export type EmailSection = z.infer<typeof EmailSectionSchema>;
 export type EmailTemplate = z.infer<typeof EmailTemplateSchema>;
