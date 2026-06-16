@@ -29,7 +29,7 @@ const NodeInputSchema = z.object({
   // Container fields
   label: z.string().nullable().optional().describe("Human label for container nodes"),
   children: z
-    .array(z.record(z.unknown()))
+    .array(z.record(z.string(), z.unknown()))
     .nullable()
     .optional()
     .describe("Child nodes (for container tags: div, section, nav, etc.)"),
