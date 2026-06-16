@@ -235,6 +235,16 @@ export function updateNodeClasses(
   return { ...tree, root: newRoot };
 }
 
+export function updateNodeContent(tree: LayoutTree, nodeId: string, content: string): LayoutTree {
+  const newRoot = mapTree(tree.root, (n) => {
+    if (n.id !== nodeId) return n;
+    if ("content" in n) return { ...n, content };
+    if ("alt" in n) return { ...n, alt: content };
+    return n;
+  });
+  return { ...tree, root: newRoot };
+}
+
 export function moveNode(tree: LayoutTree, nodeId: string, newParentId: string): LayoutTree {
   // Prevent moving a node into itself or its descendant
   const nodeToMove = findNode(tree, nodeId);
@@ -243,6 +253,52 @@ export function moveNode(tree: LayoutTree, nodeId: string, newParentId: string):
 
   const withoutNode = removeNode(tree, nodeId);
   return insertNode(withoutNode, nodeToMove, newParentId, null);
+}
+
+export function reorderChildren(
+  tree: LayoutTree,
+  parentId: string,
+  orderedIds: string[]
+): LayoutTree {
+  const newRoot = mapTree(tree.root, (n) => {
+    if (n.id !== parentId || !isContainerNode(n) || !n.children) return n;
+    const byId = new Map(n.children.map((c) => [c.id, c]));
+    const reordered = orderedIds.map((id) => byId.get(id)).filter((c): c is LayoutNode => !!c);
+    // append any children not in orderedIds at the end
+    const extra = n.children.filter((c) => !orderedIds.includes(c.id));
+    return { ...n, children: [...reordered, ...extra] };
+  });
+  return { ...tree, root: newRoot };
+}
+
+export function duplicateNode(tree: LayoutTree, nodeId: string): LayoutTree {
+  function cloneWithNewIds(node: LayoutNode): LayoutNode {
+    const newId = node.tag + "_" + nanoid(6);
+    if (isContainerNode(node)) {
+      return {
+        ...node,
+        id: newId,
+        children: node.children?.map(cloneWithNewIds) ?? null,
+      };
+    }
+    return { ...node, id: newId };
+  }
+
+  const original = findNode(tree, nodeId);
+  if (!original) return tree;
+  const clone = cloneWithNewIds(original);
+
+  // Insert the clone after the original in its parent
+  const newRoot = mapTree(tree.root, (n) => {
+    if (!isContainerNode(n) || !n.children) return n;
+    const idx = n.children.findIndex((c) => c.id === nodeId);
+    if (idx === -1) return n;
+    const updated = [...n.children];
+    updated.splice(idx + 1, 0, clone);
+    return { ...n, children: updated };
+  });
+
+  return { ...tree, root: newRoot };
 }
 
 export function collectAllClasses(node: LayoutNode): string[] {
@@ -259,6 +315,98 @@ export function collectAllTags(node: LayoutNode): string[] {
     return [...tags, ...node.children.flatMap(collectAllTags)];
   }
   return tags;
+}
+
+// ─── HTML / JSX Renderers (shared between preview and export) ─────────────────
+
+export function escapeHTML(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function renderNodeToHTML(node: LayoutNode, indent: number): string {
+  const pad = "  ".repeat(indent);
+  const classAttr = node.classes?.length ? ` class="${node.classes.join(" ")}"` : "";
+
+  if (node.tag === "img") {
+    const src = node.src ? ` src="${escapeHTML(node.src)}"` : "";
+    return `${pad}<img${classAttr}${src} alt="${escapeHTML(node.alt)}" />`;
+  }
+
+  if (
+    node.tag === "h1" ||
+    node.tag === "h2" ||
+    node.tag === "h3" ||
+    node.tag === "h4" ||
+    node.tag === "p" ||
+    node.tag === "span"
+  ) {
+    return `${pad}<${node.tag}${classAttr}>${escapeHTML(node.content)}</${node.tag}>`;
+  }
+
+  if (node.tag === "button") {
+    return `${pad}<button${classAttr}>${escapeHTML(node.content)}</button>`;
+  }
+
+  // Container nodes
+  const children = (node.children ?? []).map((c) => renderNodeToHTML(c, indent + 1)).join("\n");
+  if (!children) return `${pad}<${node.tag}${classAttr}></${node.tag}>`;
+  return `${pad}<${node.tag}${classAttr}>\n${children}\n${pad}</${node.tag}>`;
+}
+
+export function renderNodeToJSX(node: LayoutNode, indent: number): string {
+  const pad = "  ".repeat(indent);
+  const className = node.classes?.length ? ` className="${node.classes.join(" ")}"` : "";
+
+  if (node.tag === "img") {
+    const src = node.src ? ` src="${node.src}"` : "";
+    return `${pad}<img${className}${src} alt="${node.alt}" />`;
+  }
+
+  if (
+    node.tag === "h1" ||
+    node.tag === "h2" ||
+    node.tag === "h3" ||
+    node.tag === "h4" ||
+    node.tag === "p" ||
+    node.tag === "span"
+  ) {
+    return `${pad}<${node.tag}${className}>${node.content}</${node.tag}>`;
+  }
+
+  if (node.tag === "button") {
+    return `${pad}<button${className}>${node.content}</button>`;
+  }
+
+  const children = (node.children ?? []).map((c) => renderNodeToJSX(c, indent + 1)).join("\n");
+  if (!children) return `${pad}<${node.tag}${className} />`;
+  return `${pad}<${node.tag}${className}>\n${children}\n${pad}</${node.tag}>`;
+}
+
+export function generatePreviewHTML(tree: LayoutTree): string {
+  const body = renderNodeToHTML(tree.root, 2);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>body { margin: 0; }</style>
+  <script>
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'UPDATE_LAYOUT') {
+        document.body.innerHTML = e.data.html;
+      }
+    });
+  </script>
+</head>
+<body>
+${body}
+</body>
+</html>`;
 }
 
 // ─── Theme Application ────────────────────────────────────────────────────────

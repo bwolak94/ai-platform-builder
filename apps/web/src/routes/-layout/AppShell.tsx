@@ -5,7 +5,8 @@ import { useMode } from "@/hooks";
 import { useBuilderAgent } from "@/hooks";
 import { useToolDispatch } from "@/context/toolDispatch";
 import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext";
-import { serializeFormDSL } from "@ai-builder/serializers";
+import { useLayoutBuilderContext } from "@/context/layoutBuilder/LayoutBuilderContext";
+import { serializeFormDSL, serializeLayoutDSL } from "@ai-builder/serializers";
 import { ThemeToggle } from "@/ui";
 import { ChatPanel } from "../-components/ChatPanel";
 import { ModeSwitcher } from "../-components/ModeSwitcher";
@@ -19,6 +20,7 @@ export function AppShell() {
   const location = useLocation();
   const { dispatchRef } = useToolDispatch();
   const { formSchema } = useFormBuilderContext();
+  const { layoutTree } = useLayoutBuilderContext();
 
   const onToolCall = useCallback(
     (call: ToolCall) => {
@@ -27,11 +29,19 @@ export function AppShell() {
     [dispatchRef]
   );
 
-  const { messages, input, isLoading, activeToolCall, setInput, handleSubmit, sendContext } =
-    useBuilderAgent({
-      mode,
-      onToolCall,
-    });
+  const {
+    messages,
+    input,
+    isLoading,
+    activeToolCall,
+    setInput,
+    handleSubmit,
+    clearMessages,
+    sendContext,
+  } = useBuilderAgent({
+    mode,
+    onToolCall,
+  });
 
   // Sync form schema to agent context so system prompt stays accurate
   useEffect(() => {
@@ -39,6 +49,13 @@ export function AppShell() {
       sendContext({ formSchema: serializeFormDSL(formSchema) });
     }
   }, [formSchema, mode, sendContext]);
+
+  // Sync layout tree DSL to agent context so the layout prompt sees current state
+  useEffect(() => {
+    if (mode === "layout") {
+      sendContext({ layoutTree: serializeLayoutDSL(layoutTree) });
+    }
+  }, [layoutTree, mode, sendContext]);
 
   function handleModeChange(newMode: BuilderMode) {
     setMode(newMode);
@@ -67,6 +84,7 @@ export function AppShell() {
               activeToolCall={activeToolCall}
               onInputChange={setInput}
               onSubmit={handleSubmit}
+              onClear={clearMessages}
             />
           </Panel>
 

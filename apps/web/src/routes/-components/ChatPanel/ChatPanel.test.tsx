@@ -15,6 +15,7 @@ const baseProps = {
   activeToolCall: null,
   onInputChange: vi.fn(),
   onSubmit: vi.fn(),
+  onClear: vi.fn(),
 };
 
 describe("ChatPanel", () => {

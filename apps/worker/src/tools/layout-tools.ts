@@ -1,6 +1,48 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { LayoutNodeSchema } from "@ai-builder/schemas";
+
+// Flat node schema for tool inputs — avoids z.lazy()/z.discriminatedUnion() which
+// produce $defs/$ref JSON Schema structures rejected by Anthropic's tool input validator.
+const NodeInputSchema = z.object({
+  id: z.string().describe("Unique node ID, format: {tag}_{6alphanumeric}, e.g. section_abc123"),
+  tag: z
+    .enum([
+      "div",
+      "section",
+      "nav",
+      "header",
+      "main",
+      "footer",
+      "article",
+      "aside",
+      "h1",
+      "h2",
+      "h3",
+      "h4",
+      "p",
+      "span",
+      "img",
+      "button",
+    ])
+    .describe("HTML tag for this node"),
+  classes: z.array(z.string()).nullable().optional().describe("Tailwind CSS classes"),
+  // Container fields
+  label: z.string().nullable().optional().describe("Human label for container nodes"),
+  children: z
+    .array(z.record(z.string(), z.unknown()))
+    .nullable()
+    .optional()
+    .describe("Child nodes (for container tags: div, section, nav, etc.)"),
+  // Leaf fields
+  content: z.string().optional().describe("Text content for h1-h4, p, span, button"),
+  src: z.string().nullable().optional().describe("Image src (for img tag)"),
+  alt: z.string().optional().describe("Image alt text (for img tag)"),
+  variant: z
+    .enum(["primary", "secondary", "ghost", "danger"])
+    .nullable()
+    .optional()
+    .describe("Button variant (for button tag)"),
+});
 
 export const layoutTools = {
   queryLayout: tool({
@@ -10,9 +52,9 @@ export const layoutTools = {
 
   addComponent: tool({
     description:
-      "Add a new component node to the layout tree. Provide a full LayoutNode object including id (format: {tag}_{6alphanumeric}, e.g. section_abc123), tag, classes, and tag-specific fields (content for text nodes, children/label for containers, etc.).",
+      "Add a new component node to the layout tree. Provide a full node object including id (format: {tag}_{6alphanumeric}, e.g. section_abc123), tag, classes, and tag-specific fields (content for text nodes, children/label for containers, etc.).",
     inputSchema: z.object({
-      node: LayoutNodeSchema,
+      node: NodeInputSchema,
       parentId: z.string().nullable().optional().describe("Parent node ID. Null = append to root."),
       afterSiblingId: z
         .string()
@@ -42,11 +84,38 @@ export const layoutTools = {
     }),
   }),
 
+  updateContent: tool({
+    description:
+      "Update the text content of a text node (h1-h4, p, span, button) or the alt text of an img node. Use this instead of remove+add when only the text needs to change.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to update"),
+      content: z.string().describe("New text content or alt text"),
+    }),
+  }),
+
   nestComponent: tool({
     description: "Move a component inside another component in the tree.",
     inputSchema: z.object({
       nodeId: z.string(),
       newParentId: z.string(),
+    }),
+  }),
+
+  reorderComponents: tool({
+    description: "Reorder the children of a container by providing an ordered list of IDs.",
+    inputSchema: z.object({
+      parentId: z.string().describe("ID of the parent container"),
+      orderedIds: z
+        .array(z.string())
+        .describe("Child IDs in the desired order. Missing IDs are appended at the end."),
+    }),
+  }),
+
+  duplicateComponent: tool({
+    description:
+      "Duplicate a component (and all its children) and insert the copy immediately after the original. New IDs are generated automatically.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to duplicate"),
     }),
   }),
 

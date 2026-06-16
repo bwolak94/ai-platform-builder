@@ -4,7 +4,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import type { Env, BuilderMode, Context } from "./types";
-import { IncomingMessageSchema } from "./types";
+import { IncomingMessageSchema, BUILDER_MODES } from "./types";
 import { buildSystemPrompt } from "./prompts";
 import { getToolsForMode } from "./tools";
 import { buildRetrieveDocsTool } from "./rag/retrieve";
@@ -52,7 +52,13 @@ export class BuilderAgent extends AIChatAgent<Env> {
     console.log("[BuilderAgent] onChatMessage called, messages:", this.messages.length);
     try {
       const startMs = Date.now();
-      const { mode, context, env } = this;
+      const { context, env } = this;
+
+      // Derive mode from the DO room name (set to mode in useAgent({ name: mode })).
+      // This is always reliable and eliminates the set_mode race condition where the
+      // DO defaults to "form" before the set_mode WebSocket message arrives.
+      const roomName = this.name as BuilderMode | undefined;
+      const mode: BuilderMode = roomName && BUILDER_MODES.includes(roomName) ? roomName : this.mode;
 
       const logger = createLogger(env);
       const systemPrompt = buildSystemPrompt(mode, context);

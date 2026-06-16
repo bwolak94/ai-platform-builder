@@ -6,10 +6,17 @@ import {
   insertNode,
   removeNode,
   updateNodeClasses,
+  updateNodeContent,
   moveNode,
+  reorderChildren,
+  duplicateNode,
   collectAllClasses,
   collectAllTags,
   applyThemeToTree,
+  escapeHTML,
+  renderNodeToHTML,
+  renderNodeToJSX,
+  generatePreviewHTML,
 } from "../layout-dsl";
 import type { LayoutTree, LayoutNode } from "@ai-builder/schemas";
 
@@ -37,6 +44,8 @@ function makeTree(): LayoutTree {
   };
 }
 
+// ─── serializeLayoutDSL ───────────────────────────────────────────────────────
+
 describe("serializeLayoutDSL", () => {
   it("serializes a flat tree", () => {
     const tree: LayoutTree = {
@@ -52,12 +61,9 @@ describe("serializeLayoutDSL", () => {
     const tree = makeTree();
     const dsl = serializeLayoutDSL(tree);
     const lines = dsl.split("\n");
-    // Root is at depth 0
     expect(lines[0]).toMatch(/^div#root/);
-    // Section is at depth 1 (2 spaces)
     const sectionLine = lines.find((l) => l.includes("section#hero"));
     expect(sectionLine).toMatch(/^ {2}section#hero/);
-    // h1 is at depth 2 (4 spaces)
     const h1Line = lines.find((l) => l.includes("h1#title"));
     expect(h1Line).toMatch(/^ {4}h1#title/);
   });
@@ -86,6 +92,8 @@ describe("serializeLayoutDSL", () => {
   });
 });
 
+// ─── deserializeLayoutDSL ─────────────────────────────────────────────────────
+
 describe("deserializeLayoutDSL", () => {
   it("round-trips through serialize → deserialize", () => {
     const tree = makeTree();
@@ -113,25 +121,26 @@ describe("deserializeLayoutDSL", () => {
   });
 });
 
+// ─── findNode ─────────────────────────────────────────────────────────────────
+
 describe("findNode", () => {
   it("finds root by id", () => {
     const tree = makeTree();
-    const node = findNode(tree, "root");
-    expect(node?.id).toBe("root");
+    expect(findNode(tree, "root")?.id).toBe("root");
   });
 
   it("finds nested node by id", () => {
     const tree = makeTree();
     const node = findNode(tree, "title");
-    expect(node?.id).toBe("title");
     expect(node?.tag).toBe("h1");
   });
 
   it("returns null for non-existent id", () => {
-    const tree = makeTree();
-    expect(findNode(tree, "nonexistent")).toBeNull();
+    expect(findNode(makeTree(), "nonexistent")).toBeNull();
   });
 });
+
+// ─── insertNode ───────────────────────────────────────────────────────────────
 
 describe("insertNode", () => {
   it("appends node to root when parentId is null", () => {
@@ -144,117 +153,215 @@ describe("insertNode", () => {
       children: null,
     };
     const updated = insertNode(tree, newNode, null, null);
-
-    if (!("children" in updated.root) || !updated.root.children) {
+    if (!("children" in updated.root) || !updated.root.children)
       throw new Error("root should have children");
-    }
-    const last = updated.root.children[updated.root.children.length - 1];
-    expect(last?.id).toBe("footer1");
+    expect(updated.root.children.at(-1)?.id).toBe("footer1");
   });
 
   it("inserts node after sibling", () => {
     const tree = makeTree();
     const newNode: LayoutNode = { id: "sub", tag: "p", classes: null, content: "Sub" };
     const updated = insertNode(tree, newNode, "hero", "title");
-
     const hero = findNode(updated, "hero");
     if (!hero || !("children" in hero) || !hero.children) throw new Error("hero missing");
     const idx = hero.children.findIndex((c) => c.id === "sub");
-    const titleIdx = hero.children.findIndex((c) => c.id === "title");
-    expect(idx).toBe(titleIdx + 1);
+    expect(idx).toBe(hero.children.findIndex((c) => c.id === "title") + 1);
   });
 });
 
+// ─── removeNode ───────────────────────────────────────────────────────────────
+
 describe("removeNode", () => {
   it("removes a leaf node", () => {
-    const tree = makeTree();
-    const updated = removeNode(tree, "title");
-    expect(findNode(updated, "title")).toBeNull();
+    expect(findNode(removeNode(makeTree(), "title"), "title")).toBeNull();
   });
 
   it("removes a subtree", () => {
-    const tree = makeTree();
-    const updated = removeNode(tree, "hero");
+    const updated = removeNode(makeTree(), "hero");
     expect(findNode(updated, "hero")).toBeNull();
     expect(findNode(updated, "title")).toBeNull();
   });
 
-  it("does not remove root (no-op for unknown id)", () => {
-    const tree = makeTree();
-    const updated = removeNode(tree, "nonexistent");
-    expect(updated.root.id).toBe("root");
+  it("no-op for unknown id", () => {
+    expect(removeNode(makeTree(), "nonexistent").root.id).toBe("root");
   });
 });
 
+// ─── updateNodeClasses ────────────────────────────────────────────────────────
+
 describe("updateNodeClasses", () => {
   it("replaces classes", () => {
-    const tree = makeTree();
-    const updated = updateNodeClasses(tree, "title", ["text-6xl", "font-bold"], "replace");
-    const node = findNode(updated, "title");
+    const node = findNode(
+      updateNodeClasses(makeTree(), "title", ["text-6xl", "font-bold"], "replace"),
+      "title"
+    );
     expect(node?.classes).toEqual(["text-6xl", "font-bold"]);
   });
 
   it("merges classes without duplicates", () => {
-    const tree = makeTree();
-    const updated = updateNodeClasses(tree, "title", ["text-5xl", "font-bold"], "merge");
-    const node = findNode(updated, "title");
+    const node = findNode(
+      updateNodeClasses(makeTree(), "title", ["text-5xl", "font-bold"], "merge"),
+      "title"
+    );
     expect(node?.classes).toContain("font-bold");
-    // no duplicate text-5xl
     expect(node?.classes?.filter((c) => c === "text-5xl")).toHaveLength(1);
   });
 
-  it("removes specified class while keeping others", () => {
-    const tree = makeTree();
-    // hero section has ["py-20"] — merge another class first, then remove one
-    const withExtra = updateNodeClasses(tree, "hero", ["bg-white"], "merge");
-    const updated = updateNodeClasses(withExtra, "hero", ["py-20"], "remove");
-    const node = findNode(updated, "hero");
+  it("removes specified class", () => {
+    const withExtra = updateNodeClasses(makeTree(), "hero", ["bg-white"], "merge");
+    const node = findNode(updateNodeClasses(withExtra, "hero", ["py-20"], "remove"), "hero");
     expect(node?.classes).not.toContain("py-20");
     expect(node?.classes).toContain("bg-white");
   });
 
-  it("sets classes to null when all classes are removed", () => {
-    const tree = makeTree();
-    const updated = updateNodeClasses(tree, "title", ["text-5xl"], "remove");
-    const node = findNode(updated, "title");
+  it("sets classes to null when all removed", () => {
+    const node = findNode(updateNodeClasses(makeTree(), "title", ["text-5xl"], "remove"), "title");
     expect(node?.classes).toBeNull();
   });
 });
 
+// ─── updateNodeContent ────────────────────────────────────────────────────────
+
+describe("updateNodeContent", () => {
+  it("updates text content of a text node", () => {
+    const updated = updateNodeContent(makeTree(), "title", "New Heading");
+    const node = findNode(updated, "title");
+    if (!node) throw new Error("node not found");
+    expect("content" in node && node.content).toBe("New Heading");
+  });
+
+  it("updates button content", () => {
+    const updated = updateNodeContent(makeTree(), "cta", "Sign up");
+    const node = findNode(updated, "cta");
+    if (!node) throw new Error("node not found");
+    expect("content" in node && node.content).toBe("Sign up");
+  });
+
+  it("updates img alt text", () => {
+    const tree: LayoutTree = {
+      id: "t",
+      root: {
+        id: "root",
+        tag: "div",
+        classes: null,
+        label: null,
+        children: [{ id: "img1", tag: "img", classes: null, src: null, alt: "Old alt" }],
+      },
+    };
+    const updated = updateNodeContent(tree, "img1", "New alt");
+    const node = findNode(updated, "img1");
+    if (!node) throw new Error("node not found");
+    expect("alt" in node && node.alt).toBe("New alt");
+  });
+
+  it("is a no-op for container nodes", () => {
+    const tree = makeTree();
+    const updated = updateNodeContent(tree, "root", "ignored");
+    expect(findNode(updated, "root")?.tag).toBe("div");
+  });
+});
+
+// ─── moveNode ─────────────────────────────────────────────────────────────────
+
 describe("moveNode", () => {
   it("moves a node to a new parent", () => {
-    const tree = makeTree();
-    // Move cta (button) to root
-    const updated = moveNode(tree, "cta", "root");
-    expect(findNode(updated, "cta")).not.toBeNull();
-
+    const updated = moveNode(makeTree(), "cta", "root");
     const hero = findNode(updated, "hero");
     if (!hero || !("children" in hero)) throw new Error("hero missing");
-    const heroChildren = hero.children ?? [];
-    expect(heroChildren.find((c) => c.id === "cta")).toBeUndefined();
+    expect((hero.children ?? []).find((c) => c.id === "cta")).toBeUndefined();
+    expect(findNode(updated, "cta")).not.toBeNull();
   });
 
   it("does not move node into itself", () => {
-    const tree = makeTree();
-    const updated = moveNode(tree, "hero", "hero");
-    // Should be unchanged - hero is still in root
+    const updated = moveNode(makeTree(), "hero", "hero");
     expect(findNode(updated, "hero")).not.toBeNull();
   });
 });
 
-describe("collectAllClasses / collectAllTags", () => {
-  it("collects all classes from tree", () => {
+// ─── reorderChildren ─────────────────────────────────────────────────────────
+
+describe("reorderChildren", () => {
+  it("reorders children of a container", () => {
+    const updated = reorderChildren(makeTree(), "hero", ["cta", "title"]);
+    const hero = findNode(updated, "hero");
+    if (!hero || !("children" in hero) || !hero.children) throw new Error("hero missing");
+    expect(hero.children[0]?.id).toBe("cta");
+    expect(hero.children[1]?.id).toBe("title");
+  });
+
+  it("appends unlisted children at the end", () => {
+    const updated = reorderChildren(makeTree(), "hero", ["cta"]); // title not listed
+    const hero = findNode(updated, "hero");
+    if (!hero || !("children" in hero) || !hero.children) throw new Error("hero missing");
+    expect(hero.children[0]?.id).toBe("cta");
+    expect(hero.children[1]?.id).toBe("title");
+  });
+
+  it("is a no-op for unknown parentId", () => {
     const tree = makeTree();
-    const classes = collectAllClasses(tree.root);
+    const updated = reorderChildren(tree, "nonexistent", ["cta", "title"]);
+    expect(findNode(updated, "hero")).not.toBeNull();
+  });
+});
+
+// ─── duplicateNode ────────────────────────────────────────────────────────────
+
+describe("duplicateNode", () => {
+  it("inserts a copy immediately after the original", () => {
+    const updated = duplicateNode(makeTree(), "hero");
+    const root = updated.root;
+    if (!("children" in root) || !root.children) throw new Error("root missing children");
+    expect(root.children).toHaveLength(2);
+    expect(root.children[0]?.id).toBe("hero");
+    // Clone gets a different id
+    expect(root.children[1]?.id).not.toBe("hero");
+  });
+
+  it("deep-clones children with new ids", () => {
+    const updated = duplicateNode(makeTree(), "hero");
+    const root = updated.root;
+    if (!("children" in root) || !root.children) throw new Error();
+    const clone = root.children[1];
+    if (!clone || !("children" in clone) || !clone.children)
+      throw new Error("clone missing children");
+    // None of the cloned node ids should match originals
+    expect(clone.children[0]?.id).not.toBe("title");
+    expect(clone.children[1]?.id).not.toBe("cta");
+  });
+
+  it("duplicates a leaf node", () => {
+    const updated = duplicateNode(makeTree(), "title");
+    const hero = findNode(updated, "hero");
+    if (!hero || !("children" in hero) || !hero.children) throw new Error();
+    expect(hero.children).toHaveLength(3);
+    expect(hero.children[0]?.id).toBe("title");
+    // Index 1 is the clone
+    expect(hero.children[1]?.id).not.toBe("title");
+    expect(hero.children[2]?.id).toBe("cta");
+  });
+
+  it("is a no-op for unknown nodeId", () => {
+    const tree = makeTree();
+    const updated = duplicateNode(tree, "nonexistent");
+    const root = updated.root;
+    if (!("children" in root) || !root.children) throw new Error();
+    expect(root.children).toHaveLength(1);
+  });
+});
+
+// ─── collectAllClasses / collectAllTags ───────────────────────────────────────
+
+describe("collectAllClasses / collectAllTags", () => {
+  it("collects all classes", () => {
+    const classes = collectAllClasses(makeTree().root);
     expect(classes).toContain("min-h-screen");
     expect(classes).toContain("py-20");
     expect(classes).toContain("text-5xl");
     expect(classes).toContain("px-8");
   });
 
-  it("collects all tags from tree", () => {
-    const tree = makeTree();
-    const tags = collectAllTags(tree.root);
+  it("collects all tags", () => {
+    const tags = collectAllTags(makeTree().root);
     expect(tags).toContain("div");
     expect(tags).toContain("section");
     expect(tags).toContain("h1");
@@ -262,25 +369,120 @@ describe("collectAllClasses / collectAllTags", () => {
   });
 });
 
+// ─── applyThemeToTree ─────────────────────────────────────────────────────────
+
 describe("applyThemeToTree", () => {
-  it("applies colorScheme to container and text nodes", () => {
-    const tree = makeTree();
-    const updated = applyThemeToTree(tree, { colorScheme: "slate" });
-    const section = findNode(updated, "hero");
+  it("applies colorScheme to container nodes", () => {
+    const section = findNode(applyThemeToTree(makeTree(), { colorScheme: "slate" }), "hero");
     expect(section?.classes).toContain("bg-slate-900");
   });
 
   it("applies accentColor to buttons", () => {
-    const tree = makeTree();
-    const updated = applyThemeToTree(tree, { accentColor: "violet" });
-    const btn = findNode(updated, "cta");
+    const btn = findNode(applyThemeToTree(makeTree(), { accentColor: "violet" }), "cta");
     expect(btn?.classes).toContain("bg-violet-600");
   });
 
   it("applies rounded to buttons", () => {
-    const tree = makeTree();
-    const updated = applyThemeToTree(tree, { rounded: "xl" });
-    const btn = findNode(updated, "cta");
+    const btn = findNode(applyThemeToTree(makeTree(), { rounded: "xl" }), "cta");
     expect(btn?.classes).toContain("rounded-xl");
+  });
+});
+
+// ─── escapeHTML ───────────────────────────────────────────────────────────────
+
+describe("escapeHTML", () => {
+  it('escapes &, <, >, " characters', () => {
+    expect(escapeHTML("a & b")).toBe("a &amp; b");
+    expect(escapeHTML("<div>")).toBe("&lt;div&gt;");
+    expect(escapeHTML('"hello"')).toBe("&quot;hello&quot;");
+  });
+
+  it("leaves safe strings untouched", () => {
+    expect(escapeHTML("Hello World")).toBe("Hello World");
+  });
+});
+
+// ─── renderNodeToHTML ─────────────────────────────────────────────────────────
+
+describe("renderNodeToHTML", () => {
+  it("renders h1 with class and escaped content", () => {
+    const node: LayoutNode = {
+      id: "t",
+      tag: "h1",
+      classes: ["text-5xl"],
+      content: "Hello <World>",
+    };
+    const html = renderNodeToHTML(node, 0);
+    expect(html).toBe('<h1 class="text-5xl">Hello &lt;World&gt;</h1>');
+  });
+
+  it("renders button", () => {
+    const node: LayoutNode = {
+      id: "b",
+      tag: "button",
+      classes: null,
+      content: "Click",
+      variant: null,
+    };
+    expect(renderNodeToHTML(node, 0)).toBe("<button>Click</button>");
+  });
+
+  it("renders self-closing img", () => {
+    const node: LayoutNode = { id: "i", tag: "img", classes: null, src: "/a.png", alt: "Alt" };
+    expect(renderNodeToHTML(node, 0)).toContain('src="/a.png"');
+    expect(renderNodeToHTML(node, 0)).toContain('alt="Alt"');
+  });
+
+  it("renders container with children", () => {
+    const node: LayoutNode = {
+      id: "c",
+      tag: "div",
+      classes: ["flex"],
+      label: null,
+      children: [{ id: "p1", tag: "p", classes: null, content: "text" }],
+    };
+    const html = renderNodeToHTML(node, 0);
+    expect(html).toContain('<div class="flex">');
+    expect(html).toContain("<p>text</p>");
+    expect(html).toContain("</div>");
+  });
+
+  it("renders empty container as self-closing pair", () => {
+    const node: LayoutNode = { id: "c", tag: "div", classes: null, label: null, children: [] };
+    expect(renderNodeToHTML(node, 0)).toBe("<div></div>");
+  });
+});
+
+// ─── renderNodeToJSX ─────────────────────────────────────────────────────────
+
+describe("renderNodeToJSX", () => {
+  it("uses className instead of class", () => {
+    const node: LayoutNode = { id: "t", tag: "h1", classes: ["text-xl"], content: "Hi" };
+    expect(renderNodeToJSX(node, 0)).toBe('<h1 className="text-xl">Hi</h1>');
+  });
+
+  it("renders empty container as self-closing", () => {
+    const node: LayoutNode = { id: "c", tag: "div", classes: null, label: null, children: [] };
+    expect(renderNodeToJSX(node, 0)).toBe("<div />");
+  });
+});
+
+// ─── generatePreviewHTML ─────────────────────────────────────────────────────
+
+describe("generatePreviewHTML", () => {
+  it("includes postMessage listener script", () => {
+    const html = generatePreviewHTML(makeTree());
+    expect(html).toContain("UPDATE_LAYOUT");
+    expect(html).toContain("window.addEventListener");
+  });
+
+  it("includes Tailwind CDN script", () => {
+    const html = generatePreviewHTML(makeTree());
+    expect(html).toContain("cdn.tailwindcss.com");
+  });
+
+  it("includes the root node html", () => {
+    const html = generatePreviewHTML(makeTree());
+    expect(html).toContain("min-h-screen");
   });
 });

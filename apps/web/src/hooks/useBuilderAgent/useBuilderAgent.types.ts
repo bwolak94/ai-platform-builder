@@ -23,6 +23,7 @@ export interface UseBuilderAgentReturn {
   input: string;
   setInput: (value: string) => void;
   handleSubmit: (e?: React.SyntheticEvent) => void;
+  clearMessages: () => void;
   isLoading: boolean;
   activeToolCall: string | null;
   sendContext: (context: Record<string, string>) => void;
