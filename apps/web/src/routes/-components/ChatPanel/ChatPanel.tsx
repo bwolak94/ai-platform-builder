@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
-import { ScrollArea } from "@radix-ui/react-scroll-area";
+import ReactMarkdown from "react-markdown";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/utils";
 import { ToolCallStatus } from "../ToolCallStatus";
 import type { ChatPanelProps } from "./ChatPanel.types";
@@ -37,7 +38,26 @@ export function ChatPanel({
                   : "bg-muted text-foreground mr-auto"
               )}
             >
-              {msg.content}
+              {msg.role === "user" ? (
+                msg.content
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                    ul: ({ children }) => <ul className="mb-1 list-disc pl-4">{children}</ul>,
+                    ol: ({ children }) => <ol className="mb-1 list-decimal pl-4">{children}</ol>,
+                    li: ({ children }) => <li className="mb-0.5">{children}</li>,
+                    code: ({ children }) => (
+                      <code className="rounded bg-black/10 px-1 font-mono text-xs dark:bg-white/10">
+                        {children}
+                      </code>
+                    ),
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              )}
             </div>
           ))}
           {isLoading && (

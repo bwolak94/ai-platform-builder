@@ -1,4 +1,4 @@
-import { routeAgentRequest } from "@cloudflare/agents";
+import { routeAgentRequest } from "agents";
 import type { Env } from "./types";
 export { BuilderAgent } from "./agent";
 

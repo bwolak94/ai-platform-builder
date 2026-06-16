@@ -14,18 +14,18 @@ const ParameterSchema = z.object({
   in: z.enum(["path", "query", "header", "cookie"]),
   required: z.boolean(),
   description: z.string().optional(),
-  schema: z.record(z.unknown()).optional(),
+  schema: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const apiTools = {
   querySpec: tool({
     description: "Get the current OpenAPI spec including all endpoints and schema components.",
-    parameters: z.object({}),
+    inputSchema: z.object({}),
   }),
 
   addEndpoint: tool({
     description: "Add a new REST endpoint to the OpenAPI spec.",
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string().describe("Unique identifier for this endpoint"),
       method: z.enum(HTTP_METHODS),
       path: z.string().describe("URL path, kebab-case, e.g. /user-profiles/{id}"),
@@ -41,14 +41,14 @@ export const apiTools = {
 
   removeEndpoint: tool({
     description: "Remove an endpoint from the spec by its id.",
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string(),
     }),
   }),
 
   updateEndpoint: tool({
     description: "Update properties of an existing endpoint (partial update).",
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string(),
       updates: z.object({
         method: z.enum(HTTP_METHODS).optional(),
@@ -63,22 +63,22 @@ export const apiTools = {
 
   addSchemaObject: tool({
     description: "Add a reusable schema component to the OpenAPI components section.",
-    parameters: z.object({
+    inputSchema: z.object({
       name: z.string().describe("PascalCase schema name"),
-      schema: z.record(z.unknown()).describe("JSON Schema object"),
+      schema: z.record(z.string(), z.unknown()).describe("JSON Schema object"),
     }),
   }),
 
   generateMockData: tool({
     description: "Generate example mock data for a specific endpoint.",
-    parameters: z.object({
+    inputSchema: z.object({
       endpointId: z.string(),
     }),
   }),
 
   retrieveDocs: tool({
     description: "Search docs for REST best practices and OpenAPI patterns.",
-    parameters: z.object({
+    inputSchema: z.object({
       query: z.string(),
     }),
   }),

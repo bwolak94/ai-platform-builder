@@ -1,9 +1,11 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Outlet, useNavigate, useLocation } from "@tanstack/react-router";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { useMode } from "@/hooks";
 import { useBuilderAgent } from "@/hooks";
 import { useToolDispatch } from "@/context/toolDispatch";
+import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext";
+import { serializeFormDSL } from "@ai-builder/serializers";
 import { ThemeToggle } from "@/ui";
 import { ChatPanel } from "../-components/ChatPanel";
 import { ModeSwitcher } from "../-components/ModeSwitcher";
@@ -16,13 +18,27 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const { dispatchRef } = useToolDispatch();
+  const { formSchema } = useFormBuilderContext();
 
-  const onToolCall = useCallback((call: ToolCall) => dispatchRef.current(call), [dispatchRef]);
+  const onToolCall = useCallback(
+    (call: ToolCall) => {
+      return dispatchRef.current(call);
+    },
+    [dispatchRef]
+  );
 
-  const { messages, input, isLoading, activeToolCall, setInput, handleSubmit } = useBuilderAgent({
-    mode,
-    onToolCall,
-  });
+  const { messages, input, isLoading, activeToolCall, setInput, handleSubmit, sendContext } =
+    useBuilderAgent({
+      mode,
+      onToolCall,
+    });
+
+  // Sync form schema to agent context so system prompt stays accurate
+  useEffect(() => {
+    if (mode === "form") {
+      sendContext({ formSchema: serializeFormDSL(formSchema) });
+    }
+  }, [formSchema, mode, sendContext]);
 
   function handleModeChange(newMode: BuilderMode) {
     setMode(newMode);

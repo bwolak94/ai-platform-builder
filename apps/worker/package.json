@@ -13,12 +13,14 @@
     "@ai-builder/schemas": "workspace:*",
     "@ai-builder/serializers": "workspace:*",
     "@ai-builder/types": "workspace:*",
-    "@ai-sdk/openai": "^0.0.72",
-    "@cloudflare/agents": "^0.0.16",
+    "@ai-sdk/anthropic": "^3.0.84",
+    "@ai-sdk/openai": "^3.0.50",
+    "@cloudflare/ai-chat": "^0.3.2",
     "@upstash/vector": "^1.1.5",
-    "ai": "^4.3.19",
-    "braintrust": "^0.0.160",
-    "zod": "^3.23.8"
+    "agents": "^0.9.0",
+    "ai": "6.0.146",
+    "braintrust": "^3.17.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260613.1",

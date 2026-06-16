@@ -15,7 +15,7 @@ export const SystemFontSchema = z.enum([
 
 export const EmailCtaSchema = z.object({
   label: z.string().min(1),
-  url: z.string().url(),
+  url: z.url(),
   bgColor: HexColorSchema.nullable(),
   textColor: HexColorSchema.nullable(),
 });

@@ -50,8 +50,13 @@ function insertField(
 export function useFormTools(formSchema: FormSchema, setFormSchema: Setter) {
   return {
     addField: ({ field, afterFieldId }: AddFieldArgs): Promise<AddFieldResult> => {
+      console.log("[useFormTools.addField] received:", JSON.stringify(field));
       const parsed = FormFieldSchema.safeParse(field);
-      if (!parsed.success) return Promise.resolve({ error: parsed.error.message });
+      if (!parsed.success) {
+        console.error("[useFormTools.addField] safeParse FAILED:", parsed.error.message);
+        return Promise.resolve({ error: parsed.error.message });
+      }
+      console.log("[useFormTools.addField] safeParse OK, calling setFormSchema");
       setFormSchema((prev) => insertField(prev, parsed.data, afterFieldId));
       return Promise.resolve({ success: true, fieldId: parsed.data.id });
     },

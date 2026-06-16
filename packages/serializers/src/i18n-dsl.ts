@@ -22,7 +22,7 @@ export function serializeI18nDSL(store: TranslationStore): string {
     ];
     const translations = langs.map((lang) => {
       const val = key.translations[lang];
-      const missing = val === null || val === undefined ? "  ← MISSING" : "";
+      const missing = val === null ? "  ← MISSING" : "";
       return "  " + lang + ': "' + (val ?? "") + '"' + missing;
     });
     return key.key + "\n" + translations.join("\n");

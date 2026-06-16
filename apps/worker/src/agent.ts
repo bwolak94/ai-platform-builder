@@ -1,8 +1,8 @@
-import { AIChatAgent } from "@cloudflare/agents/ai-chat-agent";
-import type { Connection, WSMessage } from "@cloudflare/agents";
+import { AIChatAgent } from "@cloudflare/ai-chat";
+import type { Connection, WSMessage } from "agents";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
-import { streamText } from "ai";
-import type { StreamTextOnFinishCallback, ToolSet } from "ai";
+import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import type { Env, BuilderMode, Context } from "./types";
 import { IncomingMessageSchema } from "./types";
 import { buildSystemPrompt } from "./prompts";
@@ -47,42 +47,62 @@ export class BuilderAgent extends AIChatAgent<Env> {
     return super.onMessage(connection, message);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  override async onChatMessage(
-    onFinish: StreamTextOnFinishCallback<ToolSet>
-  ): Promise<Response | undefined> {
-    const startMs = Date.now();
-    const { mode, context, env } = this;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  override async onChatMessage(onFinish: any, _options?: any): Promise<Response | undefined> {
+    console.log("[BuilderAgent] onChatMessage called, messages:", this.messages.length);
+    try {
+      const startMs = Date.now();
+      const { mode, context, env } = this;
 
-    const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
-    const logger = createLogger(env);
-    const systemPrompt = buildSystemPrompt(mode, context);
-    const modeTools = getToolsForMode(mode);
+      const logger = createLogger(env);
+      const systemPrompt = buildSystemPrompt(mode, context);
+      const modeTools = getToolsForMode(mode);
 
-    // retrieveDocs is server-executed (calls Upstash); all other tools are client-side
-    const retrieveDocsTool = buildRetrieveDocsTool(env.UPSTASH_URL, env.UPSTASH_TOKEN);
+      // retrieveDocs runs server-side (calls Upstash); all other tools are client-side
+      const retrieveDocsTool = buildRetrieveDocsTool(env.UPSTASH_URL, env.UPSTASH_TOKEN);
 
-    const result = streamText({
-      model: openai("gpt-4o"),
-      system: systemPrompt,
-      messages: this.messages,
-      tools: { ...modeTools, retrieveDocs: retrieveDocsTool },
-      maxSteps: 10,
-      onFinish: async (finishResult) => {
-        logger?.logSpan({
-          mode,
-          messageCount: this.messages.length,
-          usage: {
-            promptTokens: finishResult.usage.promptTokens,
-            completionTokens: finishResult.usage.completionTokens,
-          },
-          durationMs: Date.now() - startMs,
-        });
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-explicit-any
-        await (onFinish as any)(finishResult);
-      },
-    });
+      // Prefer Claude when ANTHROPIC_API_KEY is set, fall back to GPT-4o
+      const model = env.ANTHROPIC_API_KEY
+        ? createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })("claude-sonnet-4-6")
+        : createOpenAI({ apiKey: env.OPENAI_API_KEY })("gpt-4o");
 
-    return result.toDataStreamResponse();
+      console.log(
+        "[BuilderAgent] using model:",
+        env.ANTHROPIC_API_KEY ? "claude-sonnet-4-6" : "gpt-4o"
+      );
+
+      // ai@6: convertToModelMessages handles UIMessage → ModelMessage conversion natively
+      const messages = await convertToModelMessages(this.messages);
+
+      console.log("[BuilderAgent] messages count:", messages.length);
+
+      const result = streamText({
+        model,
+        system: systemPrompt,
+        messages,
+        tools: { ...modeTools, retrieveDocs: retrieveDocsTool },
+        stopWhen: stepCountIs(10),
+        onFinish: async (finishResult) => {
+          console.log("[BuilderAgent] stream finished, finish reason:", finishResult.finishReason);
+          logger?.logSpan({
+            mode,
+            messageCount: this.messages.length,
+            usage: {
+              promptTokens: finishResult.usage.inputTokens ?? 0,
+              completionTokens: finishResult.usage.outputTokens ?? 0,
+            },
+            durationMs: Date.now() - startMs,
+          });
+          // Notify the base class so it can persist messages
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+          await onFinish(finishResult);
+        },
+      });
+
+      return result.toUIMessageStreamResponse();
+    } catch (err) {
+      console.error("[BuilderAgent] onChatMessage error:", err);
+      throw err;
+    }
   }
 }

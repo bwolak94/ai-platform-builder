@@ -25,4 +25,5 @@ export interface UseBuilderAgentReturn {
   handleSubmit: (e?: React.SyntheticEvent) => void;
   isLoading: boolean;
   activeToolCall: string | null;
+  sendContext: (context: Record<string, string>) => void;
 }
