@@ -7,4 +7,5 @@ export interface ChatPanelProps {
   activeToolCall: string | null;
   onInputChange: (value: string) => void;
   onSubmit: (e?: React.SyntheticEvent) => void;
+  onClear: () => void;
 }

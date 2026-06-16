@@ -1,5 +1,6 @@
 import { useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
+import { Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/utils";
 import { ToolCallStatus } from "../ToolCallStatus";
@@ -12,6 +13,7 @@ export function ChatPanel({
   activeToolCall,
   onInputChange,
   onSubmit,
+  onClear,
 }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -21,6 +23,19 @@ export function ChatPanel({
 
   return (
     <div className="flex h-full flex-col">
+      {messages.length > 0 && (
+        <div className="flex justify-end border-b px-3 py-1">
+          <button
+            onClick={onClear}
+            disabled={isLoading}
+            title="Clear conversation"
+            aria-label="Clear conversation"
+            className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
       <ScrollArea className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-muted-foreground mt-8 text-center text-sm">

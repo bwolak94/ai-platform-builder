@@ -71,6 +71,9 @@ export function useBuilderAgent({
   const onToolCallRef = useRef(onToolCall);
   onToolCallRef.current = onToolCall;
   const activeToolCallRef = useRef<string | null>(null);
+  // Track processed toolCallIds to prevent duplicate addToolOutput calls caused
+  // by stream replay when the WebSocket reconnects (e.g. Vite HMR)
+  const processedToolCallIds = useRef<Set<string>>(new Set());
   const inputRef = useRef("");
   const [input, setInputState] = useState("");
 
@@ -90,6 +93,7 @@ export function useBuilderAgent({
   const {
     messages: rawMessages,
     sendMessage,
+    clearHistory,
     status,
   } = useAgentChat({
     agent: agent as unknown as Parameters<typeof useAgentChat>[0]["agent"],
@@ -101,6 +105,13 @@ export function useBuilderAgent({
         toolCall: { toolCallId: string; toolName: string; input: unknown };
         addToolOutput: (opts: { toolCallId: string; output: unknown }) => void;
       }) => {
+        // Stream replay on WebSocket reconnect (Vite HMR, network blip) causes
+        // the same toolCallId to fire multiple times. Only process each ID once.
+        if (processedToolCallIds.current.has(toolCall.toolCallId)) {
+          return;
+        }
+        processedToolCallIds.current.add(toolCall.toolCallId);
+
         activeToolCallRef.current = toolCall.toolName;
         console.log("[useBuilderAgent] onToolCall fired:", toolCall.toolName);
         try {
@@ -109,12 +120,12 @@ export function useBuilderAgent({
             ? await onToolCallRef.current(call)
             : { error: "No handler registered" };
 
-          // addToolOutput is provided directly — no setTimeout workaround needed
           addToolOutput({ toolCallId: toolCall.toolCallId, output: result });
         } finally {
           activeToolCallRef.current = null;
         }
       },
+
       []
     ),
   });
@@ -146,19 +157,28 @@ export function useBuilderAgent({
       e?.preventDefault();
       const text = inputRef.current.trim();
       if (!text) return;
+      // Re-send mode before every message to eliminate the DO race condition
+      // where mode defaults to "form" and set_mode may arrive after the first chat message
+      agent.send(JSON.stringify({ type: "set_mode", mode }));
       void sendMessage({ role: "user", parts: [{ type: "text", text }] });
       setInput("");
     },
-    [sendMessage, setInput]
+    [sendMessage, setInput, agent, mode]
   );
 
   const isLoading = status === "submitted" || status === "streaming";
+
+  const clearMessages = useCallback(() => {
+    processedToolCallIds.current.clear();
+    clearHistory();
+  }, [clearHistory]);
 
   return {
     messages,
     input,
     setInput,
     handleSubmit,
+    clearMessages,
     isLoading,
     activeToolCall: activeToolCallRef.current,
     sendContext,
