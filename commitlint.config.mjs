@@ -26,7 +26,7 @@ export default {
         "config",
       ],
     ],
-    "subject-case": [2, "always", "lower-case"],
+    "subject-case": [2, "never", ["upper-case", "start-case", "pascal-case", "camel-case"]],
     "header-max-length": [2, "always", 100],
   },
 };

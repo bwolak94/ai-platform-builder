@@ -1,2 +1,10 @@
 export { EmailBuilderPanel } from "./EmailBuilderPanel";
 export { EmailPreview } from "./EmailPreview";
+export { SectionList } from "./SectionList";
+export { SectionEditor } from "./SectionEditor";
+export { SpamChecker } from "./SpamChecker";
+export { PresetsPanel } from "./PresetsPanel";
+export { ExportPanel } from "./ExportPanel";
+export { useEmailTools } from "./hooks/useEmailTools";
+export { useEmailState } from "./hooks/useEmailState";
+export type { ClientMode } from "./hooks/useEmailState";

@@ -9,6 +9,8 @@ export interface Env {
   BRAINTRUST_API_KEY: string;
   BRAINTRUST_API_URL?: string;
   APP_ENV: string;
+  // Optional: set to enable "Send test email" feature via Resend
+  RESEND_API_KEY?: string;
 }
 
 export type BuilderMode = "form" | "layout" | "api" | "db" | "email" | "story" | "i18n" | "e2e";
