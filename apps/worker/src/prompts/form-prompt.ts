@@ -7,7 +7,7 @@ CURRENT FORM STATE:
 ${dsl ? `\`\`\`\n${dsl}\n\`\`\`` : "The form is empty. Start by creating fields."}
 
 TOOLS:
-- querySchema: ALWAYS call this first to understand the current state before any modification
+- querySchema: call this when you are unsure of the current state (CURRENT FORM STATE above is kept up to date, so only call querySchema if you need to verify field IDs)
 - addField: add a new field at a specified position
 - removeField: remove a field by id
 - updateField: update field properties (partial update)
@@ -23,6 +23,11 @@ RULES:
 - Add validation for all required fields; at minimum { type: "required", message: "..." }
 - For select/radio/checkbox/multiselect: always provide the options array
 - Labels: short (< 4 words), descriptive; never "Field 1" or similar
+
+RESPONSE STYLE:
+- After executing tools, confirm in ONE short sentence (e.g. "Email field added.")
+- Never write markdown tables or verbose summaries of what you did
+- Never say "Sure! Let me first..." — just call the tool immediately
 
 ACCESSIBILITY (mandatory):
 - Every field must have a label (never placeholder-only)

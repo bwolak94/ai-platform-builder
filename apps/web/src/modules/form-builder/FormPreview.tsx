@@ -154,20 +154,16 @@ const PREVIEW_HTML = `<!DOCTYPE html>
 
 export function FormPreview({ schema }: FormPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const isLoadedRef = useRef(false);
 
+  const sendToIframe = (s: FormSchema) => {
+    iframeRef.current?.contentWindow?.postMessage({ type: "UPDATE_FORM", schema: s }, "*");
+  };
+
+  // Send updated schema whenever it changes (if iframe is already loaded)
   useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const send = () => {
-      iframe.contentWindow?.postMessage({ type: "UPDATE_FORM", schema }, "*");
-    };
-
-    // Wait for iframe load before sending
-    if (iframe.contentDocument?.readyState === "complete") {
-      send();
-    } else {
-      iframe.addEventListener("load", send, { once: true });
+    if (isLoadedRef.current) {
+      sendToIframe(schema);
     }
   }, [schema]);
 
@@ -179,6 +175,12 @@ export function FormPreview({ schema }: FormPreviewProps) {
       // No allow-same-origin — security requirement
       sandbox="allow-scripts allow-forms"
       className="h-full w-full rounded-md border bg-white"
+      onLoad={() => {
+        // sandbox without allow-same-origin makes contentDocument inaccessible,
+        // so we track load state via this callback instead of readyState checks
+        isLoadedRef.current = true;
+        sendToIframe(schema);
+      }}
     />
   );
 }

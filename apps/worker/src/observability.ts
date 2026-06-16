@@ -48,7 +48,8 @@ export function createLogger(env: Env): Logger | null {
             },
           };
 
-          void fetch("https://api.braintrust.dev/v1/experiment", {
+          const baseUrl = env.BRAINTRUST_API_URL ?? "https://api.braintrust.dev";
+          void fetch(`${baseUrl}/v1/experiment`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

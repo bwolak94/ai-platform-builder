@@ -46,7 +46,7 @@ export function buildRetrieveDocsTool(upstashUrl: string, upstashToken: string) 
   return tool({
     description:
       "Search the internal documentation corpus for best practices, patterns, and reference material relevant to the current builder mode.",
-    parameters: z.object({
+    inputSchema: z.object({
       query: z.string().describe("Natural language search query"),
     }),
     execute: async ({ query }: { query: string }) => {

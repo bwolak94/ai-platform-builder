@@ -11,7 +11,6 @@ vi.mock("@cloudflare/agents/react", () => ({
 
 const mockSetInput = vi.fn();
 const mockHandleSubmit = vi.fn();
-const mockAddToolResult = vi.fn();
 let mockMessages: { id: string; role: string; content: unknown }[] = [];
 let mockInput = "";
 let mockIsLoading = false;
@@ -22,7 +21,6 @@ vi.mock("@cloudflare/agents/ai-react", () => ({
     input: mockInput,
     setInput: mockSetInput,
     handleSubmit: mockHandleSubmit,
-    addToolResult: mockAddToolResult,
     isLoading: mockIsLoading,
     _onToolCall: onToolCall,
   }),

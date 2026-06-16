@@ -36,12 +36,12 @@ const ColumnSchema = z.object({
 export const dbTools = {
   querySchema: tool({
     description: "Get the current database schema including all tables, columns, and relations.",
-    parameters: z.object({}),
+    inputSchema: z.object({}),
   }),
 
   addTable: tool({
     description: "Add a new table with initial columns. Always include an id primary key.",
-    parameters: z.object({
+    inputSchema: z.object({
       name: z.string().describe("snake_case table name"),
       columns: z.array(ColumnSchema).describe("Initial column definitions"),
     }),
@@ -49,7 +49,7 @@ export const dbTools = {
 
   addColumn: tool({
     description: "Add a column to an existing table.",
-    parameters: z.object({
+    inputSchema: z.object({
       tableName: z.string(),
       column: ColumnSchema,
     }),
@@ -57,7 +57,7 @@ export const dbTools = {
 
   addRelation: tool({
     description: "Define a foreign key relationship between two tables.",
-    parameters: z.object({
+    inputSchema: z.object({
       fromTable: z.string(),
       fromColumn: z.string(),
       toTable: z.string(),
@@ -68,7 +68,7 @@ export const dbTools = {
 
   addIndex: tool({
     description: "Add an index to improve query performance on a column or set of columns.",
-    parameters: z.object({
+    inputSchema: z.object({
       tableName: z.string(),
       columns: z.array(z.string()),
       unique: z.boolean().optional(),
@@ -78,12 +78,12 @@ export const dbTools = {
 
   generateMigration: tool({
     description: "Generate the SQL migration file for the current schema state.",
-    parameters: z.object({}),
+    inputSchema: z.object({}),
   }),
 
   retrieveDocs: tool({
     description: "Search docs for PostgreSQL patterns, normalization, and indexing strategies.",
-    parameters: z.object({
+    inputSchema: z.object({
       query: z.string(),
     }),
   }),

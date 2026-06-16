@@ -33,12 +33,12 @@ const SectionPropsSchema = z.object({
 export const emailTools = {
   queryTemplate: tool({
     description: "Get the current email template state including all sections.",
-    parameters: z.object({}),
+    inputSchema: z.object({}),
   }),
 
   addSection: tool({
     description: "Add a new section to the email template.",
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string().describe("Unique section identifier"),
       type: z.enum(SECTION_TYPES),
       props: SectionPropsSchema,
@@ -52,7 +52,7 @@ export const emailTools = {
 
   updateSection: tool({
     description: "Update properties of an existing section (partial update).",
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string(),
       updates: SectionPropsSchema,
     }),
@@ -60,28 +60,28 @@ export const emailTools = {
 
   removeSection: tool({
     description: "Remove a section from the email template by its id.",
-    parameters: z.object({
+    inputSchema: z.object({
       id: z.string(),
     }),
   }),
 
   reorderSections: tool({
     description: "Reorder sections by providing the complete new ordered list of section IDs.",
-    parameters: z.object({
+    inputSchema: z.object({
       orderedIds: z.array(z.string()),
     }),
   }),
 
   previewInClient: tool({
     description: "Switch the email preview to a specific email client simulation.",
-    parameters: z.object({
+    inputSchema: z.object({
       client: z.enum(["gmail", "outlook", "apple"]),
     }),
   }),
 
   retrieveDocs: tool({
     description: "Search docs for email HTML best practices and email client compatibility.",
-    parameters: z.object({
+    inputSchema: z.object({
       query: z.string(),
     }),
   }),

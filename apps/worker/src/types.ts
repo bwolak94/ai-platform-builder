@@ -3,9 +3,11 @@ import { z } from "zod";
 export interface Env {
   BuilderAgent: DurableObjectNamespace;
   OPENAI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
   UPSTASH_URL: string;
   UPSTASH_TOKEN: string;
   BRAINTRUST_API_KEY: string;
+  BRAINTRUST_API_URL?: string;
   APP_ENV: string;
 }
 

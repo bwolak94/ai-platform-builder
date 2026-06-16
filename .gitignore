@@ -19,6 +19,10 @@ build/
 .env.*.local
 .env.production
 
+# Wrangler local dev secrets
+.dev.vars
+**/.dev.vars
+
 # Editor
 .vscode/
 .idea/
@@ -50,3 +54,4 @@ evals/results/*.json
 .claude/
 docs/
 prd.md
+.env
