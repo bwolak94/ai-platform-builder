@@ -4,11 +4,14 @@ import {
   generateSqlMigration,
   generateMermaidErd,
   generatePrismaSchema,
+  generateTypeScriptTypes,
+  generateDrizzleSchema,
 } from "@ai-builder/serializers";
 import type { DbSchema } from "@ai-builder/schemas";
 
 interface ExportPanelProps {
   schema: DbSchema;
+  migrationSql?: string;
 }
 
 function downloadFile(content: string, filename: string, mime: string) {
@@ -21,7 +24,7 @@ function downloadFile(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-export function ExportPanel({ schema }: ExportPanelProps) {
+export function ExportPanel({ schema, migrationSql }: ExportPanelProps) {
   const slug = schema.name.replace(/_/g, "-");
 
   return (
@@ -32,7 +35,7 @@ export function ExportPanel({ schema }: ExportPanelProps) {
           variant="outline"
           size="sm"
           onClick={() => {
-            downloadFile(generateSqlMigration(schema), slug + ".sql", "text/plain");
+            downloadFile(migrationSql ?? generateSqlMigration(schema), slug + ".sql", "text/plain");
           }}
         >
           <Download className="mr-1.5 h-3.5 w-3.5" /> SQL Migration
@@ -44,7 +47,25 @@ export function ExportPanel({ schema }: ExportPanelProps) {
             downloadFile(generatePrismaSchema(schema), "schema.prisma", "text/plain");
           }}
         >
-          <Download className="mr-1.5 h-3.5 w-3.5" /> Prisma Schema
+          <Download className="mr-1.5 h-3.5 w-3.5" /> Prisma
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadFile(generateDrizzleSchema(schema), "schema.ts", "text/plain");
+          }}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" /> Drizzle
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadFile(generateTypeScriptTypes(schema), slug + ".types.ts", "text/plain");
+          }}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" /> TypeScript
         </Button>
         <Button
           variant="outline"
@@ -53,7 +74,7 @@ export function ExportPanel({ schema }: ExportPanelProps) {
             downloadFile(generateMermaidErd(schema), slug + ".mmd", "text/plain");
           }}
         >
-          <Download className="mr-1.5 h-3.5 w-3.5" /> Mermaid ERD
+          <Download className="mr-1.5 h-3.5 w-3.5" /> Mermaid
         </Button>
         <Button
           variant="outline"
