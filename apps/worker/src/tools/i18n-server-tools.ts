@@ -43,7 +43,7 @@ export function buildI18nServerTools(anthropicApiKey: string) {
           const { text } = await generateText({
             model: anthropic("claude-haiku-4-5-20251001"),
             prompt,
-            maxTokens: 1024,
+            maxOutputTokens: 1024,
           });
 
           // Extract JSON — handles cases where the model adds surrounding text
