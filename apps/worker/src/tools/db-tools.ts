@@ -1,49 +1,71 @@
 import { tool } from "ai";
 import { z } from "zod";
 
-const PG_TYPES = [
-  "UUID",
-  "TEXT",
-  "INTEGER",
-  "BIGINT",
-  "BOOLEAN",
-  "TIMESTAMPTZ",
-  "JSONB",
-  "DECIMAL",
-  "SERIAL",
-  "VARCHAR",
+const COLUMN_TYPES = [
+  "uuid",
+  "text",
+  "varchar",
+  "integer",
+  "bigint",
+  "boolean",
+  "timestamptz",
+  "jsonb",
+  "decimal",
+  "float",
+  "serial",
+  "bigserial",
 ] as const;
 
+const DIALECTS = ["postgresql", "mysql", "sqlite"] as const;
 const ON_DELETE = ["CASCADE", "SET NULL", "RESTRICT", "NO ACTION"] as const;
+const RELATION_TYPES = ["one-to-one", "one-to-many", "many-to-many"] as const;
 
 const ColumnSchema = z.object({
   name: z.string().describe("snake_case column name"),
-  type: z.enum(PG_TYPES),
-  nullable: z.boolean(),
-  default: z.string().nullable().optional().describe("SQL default expression"),
-  unique: z.boolean().optional(),
-  primaryKey: z.boolean().optional(),
+  type: z.enum(COLUMN_TYPES).describe("Column data type (lowercase)"),
+  nullable: z.boolean().nullable().default(null),
+  default: z.string().nullable().default(null).describe("SQL default expression"),
+  unique: z.boolean().nullable().default(null),
+  primaryKey: z.boolean().nullable().default(null),
   foreignKey: z
     .object({
       table: z.string(),
       column: z.string(),
-      onDelete: z.enum(ON_DELETE),
+      onDelete: z.enum(ON_DELETE).nullable().default(null),
     })
     .nullable()
-    .optional(),
+    .default(null),
 });
 
 export const dbTools = {
   querySchema: tool({
-    description: "Get the current database schema including all tables, columns, and relations.",
+    description:
+      "Get the current database schema as a compact DSL. ALWAYS call this first before making any modifications.",
     inputSchema: z.object({}),
   }),
 
   addTable: tool({
-    description: "Add a new table with initial columns. Always include an id primary key.",
+    description:
+      "Add a new table with initial columns. Always include a uuid primary key and created_at/updated_at timestamps.",
     inputSchema: z.object({
       name: z.string().describe("snake_case table name"),
       columns: z.array(ColumnSchema).describe("Initial column definitions"),
+    }),
+  }),
+
+  removeTable: tool({
+    description: "Remove a table from the schema by name.",
+    inputSchema: z.object({
+      name: z.string().describe("Table name to remove"),
+    }),
+  }),
+
+  updateTable: tool({
+    description: "Rename a table or change the schema dialect.",
+    inputSchema: z.object({
+      name: z.string().describe("Current table name"),
+      newName: z.string().optional().describe("New table name"),
+      dialect: z.enum(DIALECTS).optional().describe("Change schema dialect"),
     }),
   }),
 
@@ -55,14 +77,45 @@ export const dbTools = {
     }),
   }),
 
-  addRelation: tool({
-    description: "Define a foreign key relationship between two tables.",
+  removeColumn: tool({
+    description: "Remove a column from a table.",
     inputSchema: z.object({
-      fromTable: z.string(),
-      fromColumn: z.string(),
-      toTable: z.string(),
-      toColumn: z.string().default("id"),
-      onDelete: z.enum(ON_DELETE),
+      tableName: z.string(),
+      columnName: z.string(),
+    }),
+  }),
+
+  updateColumn: tool({
+    description: "Update properties of an existing column.",
+    inputSchema: z.object({
+      tableName: z.string(),
+      columnName: z.string(),
+      updates: z.object({
+        type: z.enum(COLUMN_TYPES).optional(),
+        nullable: z.boolean().nullable().optional(),
+        default: z.string().nullable().optional(),
+        unique: z.boolean().nullable().optional(),
+      }),
+    }),
+  }),
+
+  addRelation: tool({
+    description: "Define a semantic relationship between two tables.",
+    inputSchema: z.object({
+      fromTable: z.string().describe("Source table name"),
+      fromColumn: z.string().describe("Source column (usually a FK column)"),
+      toTable: z.string().describe("Target table name"),
+      toColumn: z.string().default("id").describe("Target column (usually id)"),
+      type: z.enum(RELATION_TYPES).default("one-to-many"),
+      onDelete: z.enum(ON_DELETE).optional(),
+    }),
+  }),
+
+  removeRelation: tool({
+    description: "Remove a relation between two tables.",
+    inputSchema: z.object({
+      from: z.string().describe("Source as 'table.column'"),
+      to: z.string().describe("Target as 'table.column'"),
     }),
   }),
 
@@ -71,8 +124,24 @@ export const dbTools = {
     inputSchema: z.object({
       tableName: z.string(),
       columns: z.array(z.string()),
-      unique: z.boolean().optional(),
+      unique: z.boolean().optional().default(false),
       name: z.string().optional().describe("Optional explicit index name"),
+    }),
+  }),
+
+  removeIndex: tool({
+    description: "Remove a named index from a table.",
+    inputSchema: z.object({
+      tableName: z.string(),
+      indexName: z.string(),
+    }),
+  }),
+
+  updateSchema: tool({
+    description: "Update top-level schema metadata such as name or dialect.",
+    inputSchema: z.object({
+      name: z.string().min(1).optional().describe("New database name"),
+      dialect: z.enum(DIALECTS).optional().describe("Target SQL dialect"),
     }),
   }),
 
@@ -81,8 +150,19 @@ export const dbTools = {
     inputSchema: z.object({}),
   }),
 
+  generateTypeScriptTypes: tool({
+    description: "Generate TypeScript interfaces for all tables in the schema.",
+    inputSchema: z.object({}),
+  }),
+
+  generateDrizzleSchema: tool({
+    description: "Generate a Drizzle ORM schema file for the current tables.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
-    description: "Search docs for PostgreSQL patterns, normalization, and indexing strategies.",
+    description:
+      "Search docs for PostgreSQL patterns, normalization, indexing strategies, and ORM usage.",
     inputSchema: z.object({
       query: z.string(),
     }),

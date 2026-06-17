@@ -4,17 +4,20 @@ import type { DbSchema } from "@ai-builder/schemas";
 
 interface DbPreviewProps {
   schema: DbSchema;
+  theme?: "neutral" | "dark" | "forest" | "default";
 }
 
-function buildPreviewHtml(mermaidDef: string, title: string): string {
+function buildPreviewHtml(mermaidDef: string, title: string, theme: string): string {
   const escaped = mermaidDef.replace(/`/g, "\\`");
+  const bg = theme === "dark" ? "#1e1e2e" : "#f8f9fa";
+  const textColor = theme === "dark" ? "#cdd6f4" : "#1a1a2e";
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>${title}</title>
   <style>
-    body { margin: 0; background: #f8f9fa; display: flex; justify-content: center; padding: 20px; font-family: sans-serif; }
+    body { margin: 0; background: ${bg}; color: ${textColor}; display: flex; justify-content: center; padding: 20px; font-family: sans-serif; }
     .mermaid { max-width: 100%; }
   </style>
 </head>
@@ -22,7 +25,7 @@ function buildPreviewHtml(mermaidDef: string, title: string): string {
 <div class="mermaid" id="diagram"></div>
 <script type="module">
   import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
-  mermaid.initialize({ startOnLoad: false, theme: "neutral" });
+  mermaid.initialize({ startOnLoad: false, theme: "${theme}" });
   const def = \`${escaped}\`;
   const { svg } = await mermaid.render("erd", def);
   document.getElementById("diagram").innerHTML = svg;
@@ -31,8 +34,11 @@ function buildPreviewHtml(mermaidDef: string, title: string): string {
 </html>`;
 }
 
-export function DbPreview({ schema }: DbPreviewProps) {
-  const srcDoc = useMemo(() => buildPreviewHtml(generateMermaidErd(schema), schema.name), [schema]);
+export function DbPreview({ schema, theme = "neutral" }: DbPreviewProps) {
+  const srcDoc = useMemo(
+    () => buildPreviewHtml(generateMermaidErd(schema), schema.name, theme),
+    [schema, theme]
+  );
 
   if (schema.tables.length === 0) {
     return (

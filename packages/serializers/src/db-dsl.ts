@@ -5,9 +5,135 @@
 //   id          uuid         PK DEFAULT gen_random_uuid()
 //   email       text         UNIQUE NOT NULL
 //   user_id     uuid         FK→posts.id CASCADE
+//
+// RELATION users.id -> posts.user_id | one-to-many
 
 import { nanoid } from "nanoid";
 import type { DbSchema, Table, Column } from "@ai-builder/schemas";
+
+// ─── TypeScript types generation ─────────────────────────────────────────────
+
+const TS_TYPE_MAP: Record<string, string> = {
+  uuid: "string",
+  text: "string",
+  varchar: "string",
+  integer: "number",
+  bigint: "bigint",
+  boolean: "boolean",
+  timestamptz: "Date",
+  jsonb: "unknown",
+  decimal: "number",
+  float: "number",
+  serial: "number",
+  bigserial: "bigint",
+};
+
+function toPascalCase(name: string): string {
+  return name
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("");
+}
+
+export function generateTypeScriptTypes(schema: DbSchema): string {
+  const interfaces = schema.tables.map((table) => {
+    const fields = table.columns.map((col) => {
+      const tsType = TS_TYPE_MAP[col.type] ?? "unknown";
+      const optional = col.nullable !== false ? "?" : "";
+      return `  ${col.name}${optional}: ${tsType};`;
+    });
+    return `export interface ${toPascalCase(table.name)} {\n${fields.join("\n")}\n}`;
+  });
+
+  return (
+    `// Generated TypeScript interfaces\n// Schema: ${schema.name} (${schema.dialect})\n\n` +
+    interfaces.join("\n\n")
+  );
+}
+
+// ─── Drizzle ORM schema generation ───────────────────────────────────────────
+
+const DRIZZLE_PG_TYPE_MAP: Record<string, string> = {
+  uuid: "uuid",
+  text: "text",
+  varchar: "varchar",
+  integer: "integer",
+  bigint: "bigint",
+  boolean: "boolean",
+  timestamptz: "timestamp",
+  jsonb: "jsonb",
+  decimal: "decimal",
+  float: "doublePrecision",
+  serial: "serial",
+  bigserial: "bigserial",
+};
+
+export function generateDrizzleSchema(schema: DbSchema): string {
+  const usedTypes = new Set<string>();
+
+  const tableBlocks = schema.tables.map((table) => {
+    const cols = table.columns.map((col) => {
+      const drizzleType = DRIZZLE_PG_TYPE_MAP[col.type] ?? "text";
+      usedTypes.add(drizzleType);
+      let def = `  ${col.name}: ${drizzleType}("${col.name}")`;
+      if (col.primaryKey) def += ".primaryKey()";
+      if (col.default) def += `.default(${col.default})`;
+      if (col.unique) def += ".unique()";
+      if (col.nullable === false) def += ".notNull()";
+      return def;
+    });
+    return `export const ${table.name} = pgTable("${table.name}", {\n${cols.join(",\n")},\n});`;
+  });
+
+  const importList = ["pgTable", ...Array.from(usedTypes)].join(", ");
+  const imports = `import { ${importList} } from "drizzle-orm/pg-core";`;
+
+  return (
+    `// Generated Drizzle ORM schema\n// Schema: ${schema.name} (${schema.dialect})\n\n` +
+    imports +
+    "\n\n" +
+    tableBlocks.join("\n\n")
+  );
+}
+
+// ─── Schema diff ──────────────────────────────────────────────────────────────
+
+export interface SchemaDiff {
+  addedTables: string[];
+  removedTables: string[];
+  modifiedTables: {
+    name: string;
+    addedColumns: string[];
+    removedColumns: string[];
+  }[];
+}
+
+export function diffDbSchemas(before: DbSchema, after: DbSchema): SchemaDiff {
+  const beforeMap = new Map(before.tables.map((t) => [t.name, t]));
+  const afterMap = new Map(after.tables.map((t) => [t.name, t]));
+
+  const addedTables = after.tables.filter((t) => !beforeMap.has(t.name)).map((t) => t.name);
+  const removedTables = before.tables.filter((t) => !afterMap.has(t.name)).map((t) => t.name);
+
+  const modifiedTables: SchemaDiff["modifiedTables"] = [];
+  for (const [name, afterTable] of afterMap) {
+    const beforeTable = beforeMap.get(name);
+    if (!beforeTable) continue;
+    const beforeCols = new Set(beforeTable.columns.map((c) => c.name));
+    const afterCols = new Set(afterTable.columns.map((c) => c.name));
+    const addedColumns = afterTable.columns
+      .filter((c) => !beforeCols.has(c.name))
+      .map((c) => c.name);
+    const removedColumns = beforeTable.columns
+      .filter((c) => !afterCols.has(c.name))
+      .map((c) => c.name);
+    if (addedColumns.length > 0 || removedColumns.length > 0) {
+      modifiedTables.push({ name, addedColumns, removedColumns });
+    }
+  }
+
+  return { addedTables, removedTables, modifiedTables };
+}
 
 // ─── Serialize ────────────────────────────────────────────────────────────────
 
@@ -36,7 +162,10 @@ function serializeTable(table: Table): string {
 export function serializeDbDSL(schema: DbSchema): string {
   const header = "DB: " + schema.name + " | dialect:" + schema.dialect;
   const tables = schema.tables.map(serializeTable).join("\n\n");
-  return header + "\n\n" + tables;
+  const relations = (schema.relations ?? [])
+    .map((r) => "RELATION " + r.from + " -> " + r.to + " | " + r.type)
+    .join("\n");
+  return header + "\n\n" + tables + (relations ? "\n\n" + relations : "");
 }
 
 // ─── Deserialize ─────────────────────────────────────────────────────────────
