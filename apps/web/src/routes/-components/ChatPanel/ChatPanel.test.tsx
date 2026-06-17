@@ -36,8 +36,21 @@ describe("ChatPanel", () => {
   });
 
   it("shows loading indicator while isLoading", () => {
-    render(<ChatPanel {...baseProps} isLoading={true} />);
-    expect(screen.getByText("...")).toBeInTheDocument();
+    render(<ChatPanel {...baseProps} isLoading={true} status="submitted" />);
+    expect(screen.getByText("Thinking")).toBeInTheDocument();
+  });
+
+  it("shows applying phase when tool is active and loading", () => {
+    render(
+      <ChatPanel {...baseProps} isLoading={true} status="streaming" activeToolCall="addEndpoint" />
+    );
+    expect(screen.getByText("Applying")).toBeInTheDocument();
+    expect(screen.getByText("· add endpoint")).toBeInTheDocument();
+  });
+
+  it("shows responding phase when streaming with no tool", () => {
+    render(<ChatPanel {...baseProps} isLoading={true} status="streaming" />);
+    expect(screen.getByText("Responding")).toBeInTheDocument();
   });
 
   it("shows active tool call status", () => {

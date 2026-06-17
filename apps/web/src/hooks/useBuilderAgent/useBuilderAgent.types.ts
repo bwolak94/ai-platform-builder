@@ -18,6 +18,8 @@ export interface UseBuilderAgentOptions {
   onToolCall?: (call: ToolCall) => Promise<ToolResult>;
 }
 
+export type AgentStatus = "idle" | "submitted" | "streaming" | "error";
+
 export interface UseBuilderAgentReturn {
   messages: ChatMessage[];
   input: string;
@@ -25,6 +27,7 @@ export interface UseBuilderAgentReturn {
   handleSubmit: (e?: React.SyntheticEvent) => void;
   clearMessages: () => void;
   isLoading: boolean;
+  status: AgentStatus;
   activeToolCall: string | null;
   sendContext: (context: Record<string, string>) => void;
 }

@@ -1,6 +1,13 @@
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { generateOpenApiJson, serializeApiDSL } from "@ai-builder/serializers";
+import {
+  generateOpenApiJson,
+  serializeApiDSL,
+  generatePostmanCollection,
+  generateTypeScriptSDK,
+  generateCurlScript,
+  generatePythonSDK,
+} from "@ai-builder/serializers";
 import type { OpenApiSpec } from "@ai-builder/schemas";
 import { dump as yamlDump } from "js-yaml";
 
@@ -18,31 +25,12 @@ function downloadFile(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
-function generatePostmanCollection(spec: OpenApiSpec): string {
-  const items = spec.endpoints.map((ep) => ({
-    name: ep.summary ?? ep.method + " " + ep.path,
-    request: {
-      method: ep.method,
-      url: { raw: (spec.baseUrl ?? "http://localhost") + ep.path },
-      header: [],
-    },
-  }));
-  const collection = {
-    info: {
-      name: spec.title,
-      schema: "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    },
-    item: items,
-  };
-  return JSON.stringify(collection, null, 2);
-}
-
 export function ExportPanel({ spec }: ExportPanelProps) {
   const slug = spec.title.toLowerCase().replace(/\s+/g, "-");
 
   return (
     <div className="space-y-2">
-      <p className="text-muted-foreground text-xs">Export as:</p>
+      <p className="text-muted-foreground text-xs font-medium">Export as:</p>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="outline"
@@ -50,22 +38,24 @@ export function ExportPanel({ spec }: ExportPanelProps) {
           onClick={() => {
             downloadFile(
               JSON.stringify(generateOpenApiJson(spec), null, 2),
-              slug + ".json",
+              slug + ".openapi.json",
               "application/json"
             );
           }}
         >
           <Download className="mr-1.5 h-3.5 w-3.5" /> OpenAPI JSON
         </Button>
+
         <Button
           variant="outline"
           size="sm"
           onClick={() => {
-            downloadFile(yamlDump(generateOpenApiJson(spec)), slug + ".yaml", "text/yaml");
+            downloadFile(yamlDump(generateOpenApiJson(spec)), slug + ".openapi.yaml", "text/yaml");
           }}
         >
           <Download className="mr-1.5 h-3.5 w-3.5" /> OpenAPI YAML
         </Button>
+
         <Button
           variant="outline"
           size="sm"
@@ -79,14 +69,45 @@ export function ExportPanel({ spec }: ExportPanelProps) {
         >
           <Download className="mr-1.5 h-3.5 w-3.5" /> Postman
         </Button>
+
         <Button
           variant="outline"
           size="sm"
           onClick={() => {
-            downloadFile(serializeApiDSL(spec), slug + ".dsl.txt", "text/plain");
+            downloadFile(serializeApiDSL(spec), slug + ".api.dsl", "text/plain");
           }}
         >
           <Download className="mr-1.5 h-3.5 w-3.5" /> DSL
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadFile(generateTypeScriptSDK(spec), slug + ".sdk.ts", "text/typescript");
+          }}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" /> TypeScript SDK
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadFile(generateCurlScript(spec), slug + ".sh", "text/x-sh");
+          }}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" /> cURL Script
+        </Button>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            downloadFile(generatePythonSDK(spec), slug + "_sdk.py", "text/x-python");
+          }}
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" /> Python SDK
         </Button>
       </div>
     </div>

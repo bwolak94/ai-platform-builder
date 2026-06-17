@@ -1,15 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { EmptyState } from "@/ui";
+import { ApiSchemaBuilderPanel } from "@/modules/api-schema-builder";
 
 export const Route = createFileRoute("/api/")({
   component: ApiSchemaPage,
 });
 
 function ApiSchemaPage() {
-  return (
-    <EmptyState
-      title="API Schema Builder"
-      description="Describe your API endpoints and the agent will generate an OpenAPI schema."
-    />
-  );
+  return <ApiSchemaBuilderPanel />;
 }
