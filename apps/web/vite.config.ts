@@ -25,7 +25,7 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
       },
-      "/api": {
+      "/api/email": {
         target: "http://localhost:8787",
         changeOrigin: true,
       },

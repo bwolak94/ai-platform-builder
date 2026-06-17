@@ -35,6 +35,7 @@ export function AppShell() {
     messages,
     input,
     isLoading,
+    status,
     activeToolCall,
     setInput,
     handleSubmit,
@@ -93,6 +94,7 @@ export function AppShell() {
               messages={messages}
               input={input}
               isLoading={isLoading}
+              status={status}
               activeToolCall={activeToolCall}
               onInputChange={setInput}
               onSubmit={handleSubmit}

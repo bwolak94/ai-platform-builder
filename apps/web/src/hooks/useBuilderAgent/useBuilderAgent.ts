@@ -5,6 +5,7 @@ import { AGENT_URL } from "@/utils";
 import type {
   UseBuilderAgentOptions,
   UseBuilderAgentReturn,
+  AgentStatus,
   ChatMessage,
   ToolCall,
 } from "./useBuilderAgent.types";
@@ -70,7 +71,7 @@ export function useBuilderAgent({
 }: UseBuilderAgentOptions): UseBuilderAgentReturn {
   const onToolCallRef = useRef(onToolCall);
   onToolCallRef.current = onToolCall;
-  const activeToolCallRef = useRef<string | null>(null);
+  const [activeToolCall, setActiveToolCall] = useState<string | null>(null);
   // Track processed toolCallIds to prevent duplicate addToolOutput calls caused
   // by stream replay when the WebSocket reconnects (e.g. Vite HMR)
   const processedToolCallIds = useRef<Set<string>>(new Set());
@@ -112,7 +113,7 @@ export function useBuilderAgent({
         }
         processedToolCallIds.current.add(toolCall.toolCallId);
 
-        activeToolCallRef.current = toolCall.toolName;
+        setActiveToolCall(toolCall.toolName);
         console.log("[useBuilderAgent] onToolCall fired:", toolCall.toolName);
         try {
           const call: ToolCall = { toolName: toolCall.toolName, args: toolCall.input };
@@ -122,11 +123,11 @@ export function useBuilderAgent({
 
           addToolOutput({ toolCallId: toolCall.toolCallId, output: result });
         } finally {
-          activeToolCallRef.current = null;
+          setActiveToolCall(null);
         }
       },
 
-      []
+      [setActiveToolCall]
     ),
   });
 
@@ -180,7 +181,8 @@ export function useBuilderAgent({
     handleSubmit,
     clearMessages,
     isLoading,
-    activeToolCall: activeToolCallRef.current,
+    status: status as AgentStatus,
+    activeToolCall,
     sendContext,
   };
 }

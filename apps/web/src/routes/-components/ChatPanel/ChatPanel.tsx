@@ -1,15 +1,106 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/utils";
 import { ToolCallStatus } from "../ToolCallStatus";
 import type { ChatPanelProps } from "./ChatPanel.types";
+import type { AgentStatus } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
+
+// ─── Thinking indicator ───────────────────────────────────────────────────────
+
+type ThinkingPhase = "thinking" | "applying" | "responding";
+
+function getPhase(status: AgentStatus, activeToolCall: string | null): ThinkingPhase {
+  if (activeToolCall) return "applying";
+  if (status === "submitted") return "thinking";
+  return "responding";
+}
+
+const PHASE_CONFIG: Record<ThinkingPhase, { label: string; color: string; dotColor: string }> = {
+  thinking: {
+    label: "Thinking",
+    color: "text-amber-500 dark:text-amber-400",
+    dotColor: "bg-amber-500",
+  },
+  applying: {
+    label: "Applying",
+    color: "text-blue-500 dark:text-blue-400",
+    dotColor: "bg-blue-500",
+  },
+  responding: {
+    label: "Responding",
+    color: "text-green-500 dark:text-green-400",
+    dotColor: "bg-green-500",
+  },
+};
+
+function prettifyTool(name: string): string {
+  return name
+    .replace(/([A-Z])/g, " $1")
+    .toLowerCase()
+    .trim();
+}
+
+function ThinkingIndicator({
+  status,
+  activeToolCall,
+}: {
+  status: AgentStatus;
+  activeToolCall: string | null;
+}) {
+  const phase = getPhase(status, activeToolCall);
+  const { label, color, dotColor } = PHASE_CONFIG[phase];
+
+  const [elapsed, setElapsed] = useState(0);
+  // Reset elapsed when the phase or active tool changes
+  const phaseKey = phase + (activeToolCall ?? "");
+  useEffect(() => {
+    setElapsed(0);
+    const id = setInterval(() => {
+      setElapsed((s) => s + 1);
+    }, 1000);
+    return () => {
+      clearInterval(id);
+    };
+  }, [phaseKey]);
+
+  return (
+    <div className="bg-muted mr-auto max-w-[85%] rounded-lg px-3 py-2.5 text-sm">
+      <div className="flex items-center gap-2">
+        {/* Animated dots */}
+        <div className="flex items-center gap-0.5">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className={cn("h-1.5 w-1.5 animate-bounce rounded-full", dotColor)}
+              style={{ animationDelay: `${String(i * 150)}ms` }}
+            />
+          ))}
+        </div>
+
+        {/* Phase label */}
+        <span className={cn("text-xs font-semibold", color)}>{label}</span>
+
+        {/* Tool name when applying */}
+        {activeToolCall && (
+          <span className="text-muted-foreground text-xs">· {prettifyTool(activeToolCall)}</span>
+        )}
+
+        {/* Elapsed time */}
+        <span className="text-muted-foreground ml-auto font-mono text-[10px]">{elapsed}s</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── ChatPanel ────────────────────────────────────────────────────────────────
 
 export function ChatPanel({
   messages,
   input,
   isLoading,
+  status = "idle",
   activeToolCall,
   onInputChange,
   onSubmit,
@@ -36,12 +127,14 @@ export function ChatPanel({
           </button>
         </div>
       )}
+
       <ScrollArea className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-muted-foreground mt-8 text-center text-sm">
             Describe what you want to build...
           </p>
         )}
+
         <div className="flex flex-col gap-3">
           {messages.map((msg) => (
             <div
@@ -75,12 +168,10 @@ export function ChatPanel({
               )}
             </div>
           ))}
-          {isLoading && (
-            <div className="bg-muted text-muted-foreground mr-auto max-w-[85%] rounded-lg px-3 py-2 text-sm">
-              <span className="animate-pulse">...</span>
-            </div>
-          )}
+
+          {isLoading && <ThinkingIndicator status={status} activeToolCall={activeToolCall} />}
         </div>
+
         <div ref={bottomRef} />
       </ScrollArea>
 
