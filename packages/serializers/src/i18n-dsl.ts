@@ -72,11 +72,11 @@ export function deserializeI18nDSL(dsl: string): TranslationStore {
 
   const sourceMatch = /LANG:\s*(\S+)/.exec(firstLine);
   const activeMatch = /active:\s*(.+)/.exec(firstLine);
-  const sourceLanguage = (sourceMatch?.[1] ?? "en") as SupportedLanguage;
+  const sourceLanguage = sourceMatch?.[1] ?? "en";
   const activeLanguages = (activeMatch?.[1] ?? "")
     .split(",")
     .map((l) => l.trim())
-    .filter(Boolean) as SupportedLanguage[];
+    .filter(Boolean);
 
   const allLangs = [sourceLanguage, ...activeLanguages.filter((l) => l !== sourceLanguage)];
   const keys: TranslationKey[] = [];
@@ -117,7 +117,8 @@ export function deserializeI18nDSL(dsl: string): TranslationStore {
       // Quoted value: handles escaped quotes inside the string
       const quotedMatch = /^\s+([a-z]{2,3}(?:-[A-Z]{2})?):\s*"((?:[^"\\]|\\.)*)"/.exec(line);
       if (quotedMatch) {
-        const lang = quotedMatch[1] as SupportedLanguage;
+        const lang = quotedMatch[1];
+        if (!lang) continue;
         const val = unescapeValue(quotedMatch[2] ?? "");
         currentKey.translations[lang] = val;
         if (lang === sourceLanguage && val) currentKey.sourceText = val;
@@ -200,9 +201,7 @@ export function nestRecord(flat: Record<string, string>): Record<string, unknown
 export function exportLanguageJson(store: TranslationStore, lang: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of store.keys) {
-    // Cast to Record<string, ...> to safely access with a string key regardless of compiled schema type
-    const translations = key.translations as Record<string, string | null>;
-    result[key.key] = translations[lang] ?? key.sourceText;
+    result[key.key] = key.translations[lang] ?? key.sourceText;
   }
   return result;
 }
@@ -264,8 +263,7 @@ export function validateI18nStore(store: TranslationStore): ValidationReport {
     let keyComplete = true;
 
     for (const lang of store.activeLanguages) {
-      // Cast to safely access with a string key regardless of compiled schema type
-      const val = (k.translations as Record<string, string | null>)[lang];
+      const val = k.translations[lang];
 
       if (val == null) {
         if (lang !== store.sourceLanguage) {

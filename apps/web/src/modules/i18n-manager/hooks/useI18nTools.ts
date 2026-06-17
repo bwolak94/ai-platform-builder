@@ -29,7 +29,7 @@ function runValidation(store: TranslationStore): {
     let keyComplete = true;
     for (const lang of store.activeLanguages) {
       if (lang === store.sourceLanguage) continue;
-      const val = (k.translations as Record<string, string | null>)[lang];
+      const val = k.translations[lang];
       if (!val) {
         issues.push({ key: k.key, lang, issue: "Missing translation", severity: "error" });
         keyComplete = false;
@@ -263,13 +263,12 @@ export function useI18nTools(store: TranslationStore, setStore: Setter) {
 
       const results = store.keys
         .filter((k) => !patternRe || patternRe.test(k.key) || patternRe.test(k.sourceText))
-        .filter((k) => !missingIn || !(k.translations as Record<string, string | null>)[missingIn])
+        .filter((k) => !missingIn || !k.translations[missingIn])
         .map((k) => ({
           key: k.key,
           sourceText: k.sourceText,
           missingLanguages: store.activeLanguages.filter(
-            (l) =>
-              l !== store.sourceLanguage && !(k.translations as Record<string, string | null>)[l]
+            (l) => l !== store.sourceLanguage && !k.translations[l]
           ),
         }));
 
