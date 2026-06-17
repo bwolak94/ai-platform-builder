@@ -8,6 +8,7 @@ import { IncomingMessageSchema, BUILDER_MODES } from "./types";
 import { buildSystemPrompt } from "./prompts";
 import { getToolsForMode } from "./tools";
 import { buildRetrieveDocsTool } from "./rag/retrieve";
+import { buildI18nServerTools } from "./tools/i18n-server-tools";
 import { createLogger } from "./observability";
 
 export class BuilderAgent extends AIChatAgent<Env> {
@@ -67,6 +68,10 @@ export class BuilderAgent extends AIChatAgent<Env> {
       // retrieveDocs runs server-side (calls Upstash); all other tools are client-side
       const retrieveDocsTool = buildRetrieveDocsTool(env.UPSTASH_URL, env.UPSTASH_TOKEN);
 
+      // autoTranslate is a server-side i18n-only tool — only added in i18n mode
+      const i18nServerTools =
+        mode === "i18n" && env.ANTHROPIC_API_KEY ? buildI18nServerTools(env.ANTHROPIC_API_KEY) : {};
+
       // Prefer Claude when ANTHROPIC_API_KEY is set, fall back to GPT-4o
       const model = env.ANTHROPIC_API_KEY
         ? createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })("claude-sonnet-4-6")
@@ -86,7 +91,7 @@ export class BuilderAgent extends AIChatAgent<Env> {
         model,
         system: systemPrompt,
         messages,
-        tools: { ...modeTools, retrieveDocs: retrieveDocsTool },
+        tools: { ...modeTools, retrieveDocs: retrieveDocsTool, ...i18nServerTools },
         stopWhen: stepCountIs(10),
         onFinish: async (finishResult) => {
           console.log("[BuilderAgent] stream finished, finish reason:", finishResult.finishReason);

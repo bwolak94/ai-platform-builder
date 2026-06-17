@@ -1,6 +1,7 @@
 import { useCallback } from "react";
-import { Languages } from "lucide-react";
+import { Languages, Undo2, Redo2, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useI18nState } from "./hooks/useI18nState";
 import { useI18nTools } from "./hooks/useI18nTools";
@@ -10,7 +11,7 @@ import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
 export function I18nManagerPanel() {
-  const { store, setStore } = useI18nState();
+  const { store, setStore, undo, redo, reset, canUndo, canRedo } = useI18nState();
   const tools = useI18nTools(store, setStore);
 
   const handleToolCall = useCallback(
@@ -44,6 +45,42 @@ export function I18nManagerPanel() {
             {store.sourceLanguage}
           </p>
         </div>
+
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={undo}
+            disabled={!canUndo}
+            title="Undo"
+            aria-label="Undo last change"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={redo}
+            disabled={!canRedo}
+            title="Redo"
+            aria-label="Redo last change"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-muted-foreground hover:text-destructive h-6 w-6"
+            onClick={reset}
+            title="Reset store"
+            aria-label="Reset translation store to empty"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
         {missingCount > 0 && (
           <Badge variant="destructive" className="text-[10px]">
             {missingCount} missing
