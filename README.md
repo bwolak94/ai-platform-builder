@@ -1,7 +1,6 @@
 # AI Platform Builder
 
-> An AI-powered, multi-module web platform where natural language drives live mutations on structured state.
-> Pattern: **Agent → Client-Side Tools → Eval Harness → Improvement Loop** (AI Engineering Fundamentals, Scott Moss)
+> An AI-powered, multi-module developer platform where natural language drives live mutations on structured state — running entirely at the Cloudflare edge.
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-19.x-61dafb?logo=react&logoColor=white)
@@ -19,14 +18,27 @@
 ## Table of Contents
 
 - [Overview](#overview)
+- [Core Pattern](#core-pattern)
+- [System Context (C4 Level 1)](#system-context-c4-level-1)
+- [Container Diagram (C4 Level 2)](#container-diagram-c4-level-2)
+- [Key Interaction Flows](#key-interaction-flows)
+  - [Chat → Tool → Preview Flow](#chat--tool--preview-flow)
+  - [Agent Stream Lifecycle](#agent-stream-lifecycle)
+  - [Multi-Step Agentic Loop](#multi-step-agentic-loop)
+  - [RAG Context Injection Flow](#rag-context-injection-flow)
+- [Architecture Deep Dive](#architecture-deep-dive)
+  - [Frontend Component Hierarchy](#frontend-component-hierarchy)
+  - [State Architecture](#state-architecture)
+  - [Tool Dispatch Architecture](#tool-dispatch-architecture)
+  - [Undo / Redo Architecture](#undo--redo-architecture)
+  - [Zod Validation Boundaries](#zod-validation-boundaries)
+  - [DSL Token Compression](#dsl-token-compression)
+  - [Preview Sandbox Security](#preview-sandbox-security)
+- [Monorepo Package Graph](#monorepo-package-graph)
 - [Implementation Status](#implementation-status)
-- [System Architecture](#system-architecture)
-- [Frontend Architecture](#frontend-architecture)
-- [Backend Architecture](#backend-architecture)
-- [Key Design Patterns](#key-design-patterns)
-- [Monorepo Structure](#monorepo-structure)
-- [Technology Stack](#technology-stack)
 - [Module Reference](#module-reference)
+- [DSL Examples](#dsl-examples)
+- [Technology Stack](#technology-stack)
 - [Getting Started](#getting-started)
 - [Testing](#testing)
 - [Environment Variables](#environment-variables)
@@ -36,700 +48,805 @@
 
 ## Overview
 
-AI Platform Builder is a browser-based developer tool where users describe what they want in plain English and an AI agent performs live mutations on structured state. The agent runs on **Cloudflare Durable Objects** (one persistent session per user), streams responses back over **WebSocket**, and delegates all state mutations to **client-side tools** that execute directly in the browser. Results are rendered instantly in sandboxed iframe previews.
+AI Platform Builder is a browser-based developer productivity platform. Users describe what they want in plain English; a Cloudflare-edge AI agent executes a sequence of typed tool calls that mutate structured state in the browser. Every mutation is instantly visible via sandboxed live previews.
 
-The platform implements 8 independent builder modules — each a complete vertical slice from Zod schema → compact DSL → React UI → agent tools → live preview.
+**8 independent builder modules** — each a complete vertical slice from Zod schema → compact DSL → React UI → agent tools → live preview:
+
+| Module                  | What it builds                                      |
+| ----------------------- | --------------------------------------------------- |
+| Form Builder            | Typed `FormSchema` → HTML form + React TSX          |
+| Layout Builder          | `LayoutNode` tree → Tailwind page layout iframe     |
+| API Schema Builder      | `OpenApiSpec` → OpenAPI 3.1 JSON/YAML + Swagger UI  |
+| Email Template Builder  | `EmailTemplate` → client-simulated HTML email       |
+| DB Schema Builder       | `DbSchema` → SQL / Prisma + Mermaid ERD             |
+| Component Story Builder | `StoryFile` → Storybook CSF3 `.stories.tsx`         |
+| i18n Manager            | `I18nStore` → multi-language JSON translation files |
+| E2E Test Generator      | `TestFile` → Playwright `.spec.ts` + config + POM   |
+
+---
+
+## Core Pattern
+
+The platform implements the **AI Engineering Fundamentals** pattern by Scott Moss:
 
 ```
-User types a prompt
-      │
-      ▼
- Chat Panel (useAgentChat — Vercel AI SDK + @cloudflare/ai-chat)
-      │  WebSocket (hibernation API — DO persists between WS frames)
-      ▼
- BuilderAgent Durable Object
-      ├── retrieves relevant docs from Upstash Vector (RAG)
-      ├── builds system prompt: mode context + DSL + RAG
-      ├── calls streamText(claude-sonnet-4-6, tools, maxSteps:10)
-      └── emits tool_call event (no server execute — client-side only)
-            │
-            ▼
- onToolCall handler in browser
-      ├── Zod.safeParse(args)        — validates at boundary
-      ├── setSpec(prev => ...)       — React state mutation
-      ├── → React re-render          — instant UI update
-      └── → iframe.srcDoc = ...     — live preview refresh
-            │
-            ▼
- addToolResult(result) sent back → agent continues stream
+Agent ──► Client-Side Tools ──► Eval Harness ──► Improvement Loop
+```
+
+```mermaid
+flowchart LR
+    A[Natural Language\nPrompt] --> B[BuilderAgent\nDurable Object]
+    B --> C{streamText\nclaude-sonnet-4-6}
+    C --> D[tool_call events\nvia WebSocket]
+    D --> E[Browser\nTool Handlers]
+    E --> F[React State\nMutation]
+    F --> G[Live Preview\niframe]
+    E --> H[addToolResult\nWebSocket]
+    H --> C
+    B --> I[Braintrust\nTrace + Eval]
+```
+
+**Key insight:** The agent never executes tools server-side. It emits `tool_call` events and waits. The browser validates, executes, and returns results. This gives zero-latency preview updates with no round-trip serialization cost.
+
+---
+
+## System Context (C4 Level 1)
+
+```mermaid
+C4Context
+    title System Context — AI Platform Builder
+
+    Person(dev, "Developer", "Uses natural language to build\nforms, APIs, layouts, tests, etc.")
+
+    System(platform, "AI Platform Builder", "8-module browser tool: natural language\n→ live structured output via AI agent")
+
+    System_Ext(anthropic, "Anthropic API", "claude-sonnet-4-6\nLLM primary model")
+    System_Ext(openai, "OpenAI API", "gpt-4o fallback model")
+    System_Ext(upstash, "Upstash Vector", "RAG corpus: Playwright docs,\nTailwind patterns, OpenAPI spec")
+    System_Ext(braintrust, "Braintrust", "Eval experiments,\ntrace logging, prompt versioning")
+    System_Ext(resend, "Resend API", "Send test emails for\nEmail Template Builder")
+
+    Rel(dev, platform, "Uses", "Browser (HTTPS)")
+    Rel(platform, anthropic, "LLM inference", "HTTPS REST")
+    Rel(platform, openai, "LLM fallback", "HTTPS REST")
+    Rel(platform, upstash, "Vector search\n(RAG retrieval)", "HTTPS REST")
+    Rel(platform, braintrust, "Trace + eval\nlogging", "HTTPS REST")
+    Rel(platform, resend, "Send test email", "HTTPS REST")
+```
+
+---
+
+## Container Diagram (C4 Level 2)
+
+```mermaid
+C4Container
+    title Container Diagram — AI Platform Builder
+
+    Person(dev, "Developer")
+
+    Container_Boundary(browser, "Browser") {
+        Container(spa, "React SPA", "React 19 + Vite 5\nTanStack Router", "8 builder panels,\nlive preview iframes,\nchat interface")
+        Container(iframe, "Sandboxed iframes", "sandbox=allow-scripts\n(no allow-same-origin)", "Form / Layout / API /\nEmail live previews")
+    }
+
+    Container_Boundary(cf, "Cloudflare Edge") {
+        Container(worker, "BuilderAgent", "Cloudflare Worker\nDurable Object", "One DO per user.\nWebSocket hibernation.\nmaxSteps:10 agentic loop.")
+        Container(rag, "RAG Retriever", "Upstash Vector\nclient in Worker", "Semantic search over\ncorpus markdown docs")
+    }
+
+    Container_Boundary(pkgs, "Shared Packages") {
+        Container(schemas, "@ai-builder/schemas", "Zod 4.x", "Single source of truth\nfor all data types")
+        Container(serializers, "@ai-builder/serializers", "TypeScript", "Compact DSL per module\n+ tree utilities")
+    }
+
+    Rel(dev, spa, "Interacts", "HTTPS")
+    Rel(spa, worker, "WebSocket\n(hibernation API)", "WS")
+    Rel(spa, iframe, "Sets srcDoc\nwith generated HTML")
+    Rel(worker, rag, "Vector search\non tool call")
+    Rel(spa, schemas, "imports")
+    Rel(spa, serializers, "imports")
+    Rel(worker, schemas, "imports")
+    Rel(worker, serializers, "imports")
+```
+
+---
+
+## Key Interaction Flows
+
+### Chat → Tool → Preview Flow
+
+This is the primary user interaction: a message travels from the browser through the DO, triggers a tool call, and instantly updates the UI.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User
+    participant Chat as ChatPanel<br/>(React)
+    participant WS as WebSocket
+    participant DO as BuilderAgent<br/>(Durable Object)
+    participant LLM as Claude Sonnet 4.6<br/>(Anthropic API)
+    participant Tools as Tool Handler<br/>(Browser)
+    participant Preview as Preview iframe
+
+    User->>Chat: "Add a required email field"
+    Chat->>WS: send chat message (JSON)
+    WS->>DO: onMessage() → onChatMessage()
+
+    Note over DO: 1. Derive mode from room name<br/>2. Build system prompt (mode + DSL + RAG)<br/>3. Merge sliding-window history (max 20 msgs)
+
+    DO->>LLM: streamText({ model, system, tools, messages, maxSteps:10 })
+
+    LLM-->>DO: stream: text delta "I'll add an email field..."
+    DO-->>WS: text delta (forwarded to browser)
+    WS-->>Chat: streaming assistant message
+
+    LLM-->>DO: stream: tool_call { name:"addField", args:{...} }
+    DO-->>WS: tool_call event (NO server execute)
+    WS-->>Tools: onToolCall({ toolName, args })
+
+    Note over Tools: 1. setActiveToolCall("addField") → ThinkingIndicator "Applying"<br/>2. Zod.safeParse(args) at boundary<br/>3. setFormSchema(prev => [...prev.fields, newField])
+
+    Tools->>Preview: React re-render → iframe.srcDoc = generateFormHtml(schema)
+    Note over Preview: Instant visual update (0ms network latency)
+
+    Tools->>WS: addToolResult({ success: true, fieldId: "f_abc123" })
+    WS->>DO: tool result received
+    DO->>LLM: continue stream with tool result
+
+    LLM-->>DO: stream: text "Done! I've added a required email field."
+    DO-->>WS: text delta
+    WS-->>Chat: final assistant message
+
+    Note over Tools: setActiveToolCall(null) → ThinkingIndicator hidden
+```
+
+---
+
+### Agent Stream Lifecycle
+
+The `ThinkingIndicator` component reflects the agent's internal state through three distinct phases:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    [*] --> Idle: page load
+
+    Idle --> Thinking: user submits message\n(status = "submitted")
+    Thinking --> Applying: LLM emits tool_call\n(activeToolCall set)
+    Applying --> Responding: tool result returned\n(status = "streaming", activeToolCall = null)
+    Responding --> Applying: LLM emits another tool_call\n(multi-step agentic loop)
+    Responding --> Idle: stream completes\n(status = "idle")
+    Thinking --> Idle: error / abort
+    Applying --> Idle: error / abort
+
+    state Thinking {
+        direction LR
+        [*] --> amber_dots
+        amber_dots: ● ● ●\nThinking\n(elapsed timer)
+    }
+    state Applying {
+        direction LR
+        [*] --> blue_dots
+        blue_dots: ● ● ●\nApplying · addField\n(elapsed timer)
+    }
+    state Responding {
+        direction LR
+        [*] --> green_dots
+        green_dots: ● ● ●\nResponding\n(elapsed timer)
+    }
+```
+
+---
+
+### Multi-Step Agentic Loop
+
+The agent runs up to `maxSteps: 10` tool calls before returning to the user. This enables complex multi-step operations ("set the title, add 5 endpoints, then add authentication schemas") in a single prompt:
+
+```mermaid
+sequenceDiagram
+    participant DO as BuilderAgent DO
+    participant LLM as Claude Sonnet 4.6
+    participant Browser as Browser Tools
+
+    DO->>LLM: streamText(system, messages, tools, maxSteps:10)
+
+    Note over LLM: Step 1
+    LLM-->>DO: tool_call: querySpec {}
+    DO-->>Browser: dispatch querySpec
+    Browser-->>DO: { dsl: "API: My API v1.0..." }
+    DO->>LLM: addToolResult(dsl)
+
+    Note over LLM: Step 2
+    LLM-->>DO: tool_call: updateSpec { title, version }
+    DO-->>Browser: dispatch updateSpec
+    Browser-->>DO: { success: true }
+    DO->>LLM: addToolResult
+
+    Note over LLM: Steps 3–7
+    LLM-->>DO: tool_call: addEndpoint (×5 in sequence)
+    DO-->>Browser: dispatch each
+    Browser-->>DO: { success: true, endpointId: "..." }
+
+    Note over LLM: Step 8
+    LLM-->>DO: tool_call: addSchemaObject { name:"AuthToken" }
+    DO-->>Browser: dispatch
+    Browser-->>DO: { success: true }
+
+    Note over LLM: Final text response
+    LLM-->>DO: "I've set up your API with 5 endpoints and an auth schema."
+    DO-->>Browser: stream complete
+```
+
+---
+
+### RAG Context Injection Flow
+
+Every prompt includes semantically relevant documentation from an Upstash Vector index:
+
+```mermaid
+flowchart TD
+    A[User prompt:\n'add a multipart file upload endpoint'] -->|1. Embed with text-embedding-3| B[Query Vector\n1536-dim embedding]
+    B -->|2. Top-3 cosine similarity| C[Upstash Vector Index\n/corpus/api/, /tailwind/,\n/playwright/, /storybook/]
+    C -->|3. Retrieved chunks| D[RAG context string\n~500 tokens]
+    D --> E[System Prompt Builder]
+    F[Current DSL state\n~200 tokens] --> E
+    G[Mode-specific rules\n~300 tokens] --> E
+    E -->|Total: ~1000 tokens| H[streamText call\nwith full context]
+    H --> I[LLM emits tool_call\nusing retrieved patterns]
+```
+
+The `retrieveDocs` tool is the **only** server-side tool in the system. All other tools are client-only.
+
+---
+
+## Architecture Deep Dive
+
+### Frontend Component Hierarchy
+
+```mermaid
+graph TD
+    AP[AppProviders\nModeContext · ToolDispatchContext\nFormBuilderContext · LayoutBuilderContext\nEmailBuilderContext · ApiBuilderContext] --> RP[RouterProvider\nTanStack Router]
+    RP --> AS[AppShell\nResizablePanelGroup]
+
+    AS --> CP[ChatPanel\nuseAgentChat · messages]
+    AS --> OUT[Router Outlet]
+    AS --> PF[PreviewFrame\nsandboxed iframe]
+
+    CP --> MI[ThinkingIndicator\nphase · elapsed · dotColor]
+    CP --> TCS[ToolCallStatus\nactive tool name]
+    CP --> ES[EmptyState\nper-mode hints · prompt chips]
+
+    OUT --> FBP[FormBuilderPanel\n/form]
+    OUT --> LBP[LayoutBuilderPanel\n/layout]
+    OUT --> ASP[ApiSchemaBuilderPanel\n/api]
+    OUT --> EBP[EmailBuilderPanel\n/email]
+    OUT --> DBP[DbSchemaBuilderPanel\n/db]
+    OUT --> SBP[ComponentStoryBuilderPanel\n/story]
+    OUT --> I18NP[I18nManagerPanel\n/i18n]
+    OUT --> E2EP[E2eTestGeneratorPanel\n/e2e]
+
+    FBP --> FL[FieldList\ndnd-kit drag-reorder]
+    FBP --> FE[FieldEditor\nSheet slide-over]
+    FBP --> FPR[FormPreview → iframe]
+
+    ASP --> EL[EndpointList]
+    ASP --> SL[SchemaList]
+    ASP --> LP[LintPanel\nhealthScore · issues]
+    ASP --> SNP[SnapshotsPanel\nmax 5 named snapshots]
+
+    E2EP --> TCL[TestCaseList\nstep delete · expand-all]
+    E2EP --> SPV[SpecPreview\ncopy button]
+    E2EP --> PCP[PlaywrightConfigPanel\nconfig generator]
+    E2EP --> PPE[PresetsPanel\n5 preset test suites]
+```
+
+---
+
+### State Architecture
+
+No global state library. Each module owns its state via an isolated React hook. Some modules promote their state to Context so the AppShell can sync the DSL to the agent. State follows a consistent pattern across all 8 modules:
+
+```mermaid
+graph LR
+    subgraph hook["useModuleState() hook"]
+        direction TB
+        P[past: State\[\]] --> PRS[present: State]
+        PRS --> F[future: State\[\]]
+        LS[(localStorage\npersistence)]
+        PRS -- useEffect --> LS
+        LS -- loadInitial --> PRS
+    end
+
+    subgraph ops["Operations"]
+        direction TB
+        SET["setState(next)\n→ push present to past\n→ clear future"]
+        UND["undo()\n→ pop past\n→ push to future"]
+        RED["redo()\n→ shift future\n→ push to past"]
+        RST["reset()\n→ push present to past\n→ restore default"]
+    end
+
+    hook --> MT[useModuleTools\nZod-validated tool handlers]
+    MT --> Panel[ModulePanel\nuseRegisterToolDispatch]
+```
+
+**History cap:** `MAX_HISTORY = 20` (story, i18n, e2e) or `MAX_HISTORY = 50` (api) — oldest entries are sliced off with `slice(-(MAX_HISTORY - 1))`.
+
+---
+
+### Tool Dispatch Architecture
+
+A single mutable `dispatchRef` routes every tool call to whichever module panel is currently mounted. No re-renders. No stale closures. Safe across route transitions:
+
+```mermaid
+sequenceDiagram
+    participant WS as WebSocket
+    participant UA as useBuilderAgent
+    participant DX as ToolDispatchContext\n(dispatchRef)
+    participant FBP as FormBuilderPanel\n(mounted on /form)
+
+    Note over FBP: On mount: useRegisterToolDispatch(handleToolCall)
+    FBP->>DX: register(stableWrapper → fnRef.current)
+    Note over DX: dispatchRef.current = stableWrapper\n(overwrites previous module's handler)
+
+    WS->>UA: tool_call event arrives
+    UA->>UA: setActiveToolCall("addField")
+    UA->>DX: dispatchRef.current({ toolName:"addField", args })
+    DX->>FBP: stableWrapper invokes fnRef.current
+    FBP->>FBP: tools["addField"](args) → Zod.safeParse → setState
+    FBP-->>UA: Promise<{ success: true, fieldId }>
+    UA->>WS: addToolResult({ success: true })
+    UA->>UA: setActiveToolCall(null)
+```
+
+```typescript
+// Context value
+interface ToolDispatchContextValue {
+  dispatchRef: { current: ToolDispatcher };
+  register: (fn: ToolDispatcher) => void; // useCallback — stable reference
+}
+
+// Registration in each module panel:
+function useRegisterToolDispatch(fn: ToolDispatcher): void {
+  const { register } = useToolDispatch();
+  const fnRef = useRef<ToolDispatcher>(fn);
+  fnRef.current = fn; // always current, no re-render trigger
+
+  useEffect(() => {
+    // Stable wrapper — fnRef.current is always the latest handler
+    register((call) => fnRef.current(call));
+  }, [register]); // runs once on mount
+}
+```
+
+---
+
+### Undo / Redo Architecture
+
+Implemented as two stacks — O(1) push/pop, bounded to `MAX_HISTORY` entries:
+
+```mermaid
+stateDiagram-v2
+    direction LR
+
+    state "Initial State" as S0 {
+        past0: past = []
+        present0: present = A
+        future0: future = []
+    }
+
+    state "After setState(B)" as S1 {
+        past1: past = [A]
+        present1: present = B
+        future1: future = []
+    }
+
+    state "After setState(C)" as S2 {
+        past2: past = [A, B]
+        present2: present = C
+        future2: future = []
+    }
+
+    state "After undo()" as S3 {
+        past3: past = [A]
+        present3: present = B
+        future3: future = [C]
+    }
+
+    state "After redo()" as S4 {
+        past4: past = [A, B]
+        present4: present = C
+        future4: future = []
+    }
+
+    S0 --> S1: setState(B)
+    S1 --> S2: setState(C)
+    S2 --> S3: undo()
+    S3 --> S4: redo()
+```
+
+---
+
+### Zod Validation Boundaries
+
+There are exactly **three** Zod validation boundaries in the system. Each boundary is a trust gap between two actors:
+
+```mermaid
+flowchart TD
+    LLM[LLM\ntool_call args] -->|Boundary 1| B1{"Zod.safeParse\non tool args"}
+    B1 -- parsed.success --> SET[setState mutation]
+    B1 -- parsed.error --> ERR[return error to agent\nfor self-correction]
+
+    PM[postMessage\nfrom iframe] -->|Boundary 2| B2{"Zod.safeParse\non postMessage payload"}
+    B2 -- valid --> PMACT[handle preview action]
+
+    EXPORT[Export / Download] -->|Boundary 3| B3{"Zod.safeParse\non current state"}
+    B3 -- valid --> FILE[generate output file]
+    B3 -- invalid --> WARN[show validation warning]
+```
+
+**Critical pattern:** Agent-omitted optional fields must use `.nullable().default(null)` — not just `.nullable()`:
+
+```typescript
+// WRONG — agent omits `summary` → Zod throws "Required"
+summary: z.string().nullable();
+
+// CORRECT — agent omits `summary` → Zod coerces to null
+summary: z.string().nullable().default(null);
+```
+
+---
+
+### DSL Token Compression
+
+Each module serializes its state into a hand-crafted compact DSL injected into every system prompt. This is the key mechanism enabling large schemas to fit within a single context window:
+
+```mermaid
+graph LR
+    RS[React State\nOpenApiSpec JSON\n~4000 tokens] -->|serializeApiDSL| DS[Compact DSL\n~600 tokens\n85% reduction]
+    DS --> SP[System Prompt]
+    SP --> LLM[LLM Context Window]
+
+    LLM -->|tool_call args| ZP[Zod.safeParse]
+    ZP -->|valid| RS2[Updated React State]
+    RS2 -->|next prompt| DS
+```
+
+**Token comparison across all 8 modules:**
+
+| Module                   | Raw JSON      | Compact DSL | Reduction |
+| ------------------------ | ------------- | ----------- | :-------: |
+| Form — 10 fields         | ~2,000 tokens | ~200 tokens |  **90%**  |
+| Layout — 20 nodes        | ~3,000 tokens | ~400 tokens |  **87%**  |
+| API Spec — 15 routes     | ~4,000 tokens | ~600 tokens |  **85%**  |
+| Email — 8 sections       | ~1,500 tokens | ~150 tokens |  **90%**  |
+| DB Schema — 6 tables     | ~2,500 tokens | ~350 tokens |  **86%**  |
+| Story File — 5 variants  | ~1,200 tokens | ~180 tokens |  **85%**  |
+| i18n — 30 keys × 3 langs | ~3,500 tokens | ~400 tokens |  **89%**  |
+| E2E — 8 test cases       | ~2,800 tokens | ~350 tokens |  **88%**  |
+
+---
+
+### Preview Sandbox Security
+
+Generated HTML runs in a fully sandboxed iframe. The `allow-same-origin` attribute is intentionally omitted:
+
+```mermaid
+graph LR
+    subgraph parent["Parent (React App) — https://app.example.com"]
+        direction TB
+        RS[React State]
+        GH[generateHtml\nschema → HTML string]
+        RS --> GH
+    end
+
+    subgraph sandbox["Sandboxed iframe — null origin"]
+        direction TB
+        DOM[Agent-generated DOM]
+        CDN[Tailwind CDN scripts]
+        DOM --- CDN
+    end
+
+    GH -->|iframe.srcDoc = html\nsandbox='allow-scripts'| sandbox
+
+    subgraph blocked["Blocked by sandbox (no allow-same-origin)"]
+        direction TB
+        X1[❌ Read parent DOM]
+        X2[❌ Access parent cookies]
+        X3[❌ Access parent localStorage]
+        X4[❌ Credentialed fetch]
+        X5[❌ Navigate parent frame]
+    end
+
+    sandbox -.->|cannot| blocked
+```
+
+---
+
+## Monorepo Package Graph
+
+```mermaid
+graph TD
+    SCH[packages/schemas\nZod 4.x — all data types\nFormFieldSchema · LayoutNodeSchema\nOpenApiSpec · EmailTemplate\nDbSchema · StoryFile\nI18nStore · TestFile + TestManagerState]
+
+    SER[packages/serializers\nDSL encode/decode per module\nTree utilities: findNode · insertNode\nremoveNode · moveNode · applyTheme\ngeneratePlaywrightSpec · generatePageObject\ngeneratePlaywrightConfig]
+
+    SCH -->|workspace:*| SER
+    SCH -->|workspace:*| WEB
+    SCH -->|workspace:*| WORKER
+
+    SER -->|workspace:*| WEB
+    SER -->|workspace:*| WORKER
+
+    subgraph WEB[apps/web\nReact 19 + Vite 5 + TanStack Router]
+        direction TB
+        ROUTES[routes/ — 8 module pages\n+ ChatPanel + PreviewFrame]
+        MODULES[modules/ — 8 builder panels]
+        HOOKS[hooks/ — useBuilderAgent · useMode]
+        CTX[context/ — toolDispatch · per-module]
+        ROUTES --- MODULES
+        MODULES --- HOOKS
+        MODULES --- CTX
+    end
+
+    subgraph WORKER[apps/worker\nCloudflare Worker + Durable Object]
+        direction TB
+        AGENT[agent.ts — BuilderAgent DO\nmode routing · streamText · maxSteps:10]
+        PROMPTS[prompts/ — 8 system prompts]
+        TOOLS[tools/ — 8 tool sets\nschema-only, no execute]
+        RAG[rag/retrieve.ts\nUpstash Vector client]
+        OBS[observability.ts\nBraintrust logger]
+        AGENT --- PROMPTS
+        AGENT --- TOOLS
+        AGENT --- RAG
+        AGENT --- OBS
+    end
 ```
 
 ---
 
 ## Implementation Status
 
-| Module                         | Schema | DSL | React UI | Tests | Worker Tools | Worker Prompt |
-| ------------------------------ | :----: | :-: | :------: | :---: | :----------: | :-----------: |
-| **Form Builder**               |   ✅   | ✅  |    ✅    |  ✅   |      ✅      |      ✅       |
-| **Layout Builder**             |   ✅   | ✅  |    ✅    |  ✅   |      ✅      |      ✅       |
-| **API Schema Builder**         |   ✅   | ✅  |    ✅    |  ✅   |      ✅      |      ✅       |
-| **Email Template Builder**     |   ✅   | ✅  |    ✅    |  🔲   |      ✅      |      ✅       |
-| DB Schema Builder              |   ✅   | ✅  |    🔲    |  🔲   |      ✅      |      ✅       |
-| Component Story Builder        |   ✅   | ✅  |    🔲    |  🔲   |      ✅      |      ✅       |
-| i18n Manager                   |   ✅   | ✅  |    🔲    |  🔲   |      ✅      |      ✅       |
-| E2E Test Generator             |   ✅   | ✅  |    🔲    |  🔲   |      ✅      |      ✅       |
-| **App Shell / Chat / Routing** |   —    |  —  |    ✅    |  ✅   |      —       |       —       |
-| **Eval Harness**               |   —    |  —  |    —     |   —   |      🔲      |       —       |
+| Module                      | Schema | DSL | React UI | Tests | Worker Tools | Worker Prompt |
+| --------------------------- | :----: | :-: | :------: | :---: | :----------: | :-----------: |
+| **Form Builder**            |   ✅   | ✅  |    ✅    |  ✅   |      ✅      |      ✅       |
+| **Layout Builder**          |   ✅   | ✅  |    ✅    |  ✅   |      ✅      |      ✅       |
+| **API Schema Builder**      |   ✅   | ✅  |    ✅    |  ✅   |      ✅      |      ✅       |
+| **Email Template Builder**  |   ✅   | ✅  |    ✅    |  🔲   |      ✅      |      ✅       |
+| **DB Schema Builder**       |   ✅   | ✅  |    ✅    |  🔲   |      ✅      |      ✅       |
+| **Component Story Builder** |   ✅   | ✅  |    ✅    |  🔲   |      ✅      |      ✅       |
+| **i18n Manager**            |   ✅   | ✅  |    ✅    |  🔲   |      ✅      |      ✅       |
+| **E2E Test Generator**      |   ✅   | ✅  |    ✅    |  🔲   |      ✅      |      ✅       |
+| App Shell / Chat / Routing  |   —    |  —  |    ✅    |  ✅   |      —       |       —       |
+| Eval Harness                |   —    |  —  |    —     |   —   |      🔲      |       —       |
 
 ✅ Complete · 🔲 Planned
 
-**Backend fully scaffolded**: all 8 modules have worker tools + system prompts deployed and routing in `BuilderAgent`.
+---
+
+## Module Reference
+
+### Form Builder
+
+Generates and edits typed HTML forms from natural language.
+
+**Schema:** `FormField` (13 types) · `ValidationRule` (8 types) → `FormSchema`
+
+**Tools:**
+
+| Tool            | Args                       | Effect                         |
+| --------------- | -------------------------- | ------------------------------ |
+| `addField`      | `{ field, afterFieldId? }` | Insert Zod-validated field     |
+| `removeField`   | `{ fieldId }`              | Delete field by ID             |
+| `updateField`   | `{ fieldId, updates }`     | Partial field update           |
+| `reorderFields` | `{ orderedIds }`           | Reorder all fields by ID array |
+| `querySchema`   | —                          | Return compact DSL string      |
+
+**Field types:** `text · email · password · number · tel · textarea · select · multiselect · checkbox · radio · date · file · hidden`
+
+**Exports:** JSON Schema · React TSX (react-hook-form) · Semantic HTML
 
 ---
 
-## System Architecture
+### Layout Builder
 
-### High-Level System Diagram
+Builds Tailwind CSS page layouts as a typed recursive `LayoutNode` tree.
 
-```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                         Browser  (React 19 + Vite 5)                             │
-│                                                                                  │
-│  ┌─────────────────┐   ┌────────────────────────────┐   ┌───────────────────┐   │
-│  │   Chat Panel    │   │      Builder Panel          │   │   Preview Panel   │   │
-│  │                 │   │                             │   │                   │   │
-│  │  useAgentChat   │   │  ModeSwitcher (8 modes)     │   │  <iframe          │   │
-│  │  ThinkingPhase  │   │  FormBuilderPanel      ✅   │   │   sandbox=        │   │
-│  │  ToolCallStatus │   │  LayoutBuilderPanel    ✅   │   │   "allow-scripts" │   │
-│  │  ScrollArea     │   │  ApiSchemaBuilderPanel ✅   │   │   NO same-origin  │   │
-│  │                 │   │  EmailBuilderPanel     ✅   │   │                   │   │
-│  └────────┬────────┘   │  (+ 4 scaffolded)          │   │  Tailwind CDN     │   │
-│           │ WebSocket  └──────────────┬──────────────┘   │  Live render      │   │
-│           │ (WS hib.)                │ ToolDispatch      └───────────────────┘   │
-└───────────┼──────────────────────────┼──────────────────────────────────────────┘
-            │                          │
-┌───────────┼──────────────────────────┼──────── Cloudflare Edge ──────────────────┐
-│           ▼                          │                                            │
-│  ┌────────────────────────────────┐  │  ┌──────────────────────────────────────┐ │
-│  │   BuilderAgent (Durable Object)│◄─┘  │  Wrangler Secrets                    │ │
-│  │                                │     │  ANTHROPIC_API_KEY (primary)          │ │
-│  │  • AIChatAgent extends DO      │     │  OPENAI_API_KEY   (fallback)          │ │
-│  │  • mode: BuilderMode           │     │  UPSTASH_URL / UPSTASH_TOKEN          │ │
-│  │  • context: DSL string         │     │  BRAINTRUST_API_KEY                   │ │
-│  │  • streamText → claude/gpt-4o  │     └──────────────────────────────────────┘ │
-│  │  • maxSteps: 10 (agentic)      │                                              │
-│  │  • sliding window: 20 msgs     │                                              │
-│  │  • WS hibernation API          │                                              │
-│  └────────────────┬───────────────┘                                              │
-└───────────────────┼──────────────────────────────────────────────────────────────┘
-                    │
-┌───────────────────┼───────────────────── External Services ──────────────────────┐
-│                   │                                                               │
-│   ┌───────────────▼──┐   ┌──────────────────┐   ┌────────────────────────────┐  │
-│   │  Anthropic        │   │  Upstash Vector  │   │  Braintrust                │  │
-│   │  claude-sonnet-4-6│   │  RAG corpus      │   │  Eval experiments          │  │
-│   │  (primary)        │   │  1536-dim index  │   │  Trace logging             │  │
-│   │  GPT-4o (fallback)│   │  HTTP REST API   │   │  Prompt versioning         │  │
-│   └───────────────────┘   └──────────────────┘   └────────────────────────────┘  │
-└───────────────────────────────────────────────────────────────────────────────────┘
-```
+**Schema:** `LayoutNode` (16 types, `z.lazy` recursive) · `LayoutTree`
 
-### Agent Communication Protocol
+**Tools:**
 
-Every message from the browser to the DO carries a typed discriminated union parsed by Zod:
+| Tool                 | Args                                   | Effect                    |
+| -------------------- | -------------------------------------- | ------------------------- |
+| `addComponent`       | `{ node, parentId?, afterSiblingId? }` | Insert Zod-validated node |
+| `removeComponent`    | `{ nodeId }`                           | Remove node + subtree     |
+| `updateClasses`      | `{ nodeId, classes, mode }`            | replace / merge / remove  |
+| `updateContent`      | `{ nodeId, content }`                  | Update text content       |
+| `nestComponent`      | `{ nodeId, newParentId }`              | Move node to new parent   |
+| `reorderComponents`  | `{ parentId, orderedIds }`             | Reorder children          |
+| `duplicateComponent` | `{ nodeId }`                           | Clone at same level       |
+| `applyTheme`         | `{ colorScheme?, accentColor? }`       | Walk tree, apply theme    |
+| `queryLayout`        | —                                      | Return compact DSL string |
 
-```
-Browser → WebSocket → BuilderAgent.onMessage()
-                            │
-                ┌───────────┼───────────────┐
-                ▼           ▼               ▼
-         set_mode      update_context   chat message
-         ─────────     ──────────────   ────────────
-         this.mode =   this.context =   super.onMessage()
-         data.mode     { ...data.ctx }  → onChatMessage()
-```
-
-```typescript
-// Zod-parsed on every incoming WebSocket frame
-const IncomingMessageSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("set_mode"), mode: BuilderModeSchema }),
-  z.object({ type: z.literal("update_context"), context: ContextSchema }),
-  // all other frames → AIChatAgent base class handler
-]);
-```
-
-### Tool Dispatch Flow
-
-```
-streamText emits tool_call
-        │
-        ▼ (WebSocket frame to browser)
-useBuilderAgent.onToolCall(call: ToolCall)
-        │
-        ├── setActiveToolCall(call.toolName)   ← triggers ThinkingIndicator "Applying" phase
-        │
-        ▼
-dispatchRef.current(call)                      ← stable ref, no re-renders on register
-        │
-        ▼
-<ActiveModulePanel>.handleToolCall(call)
-        │
-        ├── tools[call.toolName](call.args)    ← Zod-validated at this boundary
-        │        │
-        │        ├── ApiEndpointSchema.safeParse(args)
-        │        ├── setSpec(prev => ...)       ← React state mutation
-        │        └── return { success, ... }   ← or { error }
-        │
-        ▼
-addToolResult(result)                          ← sent back to DO via WebSocket
-setActiveToolCall(null)                        ← triggers ThinkingIndicator "Responding" phase
-```
-
-### Package Dependency Graph
-
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                          packages/schemas                                     │
-│                                                                              │
-│  FormFieldSchema         LayoutNodeSchema (z.lazy — recursive)               │
-│  ApiEndpointSchema       OpenApiSpecSchema                                   │
-│  EmailSectionSchema      DbTableSchema                                       │
-│  i18nKeySchema           StorySchema · E2eTestSchema                         │
-│                                                                              │
-│  All types derived via z.infer<> — runtime + compile-time parity            │
-└──────────────────────────────┬───────────────────────────────────────────────┘
-                               │ workspace:*
-               ┌───────────────┴──────────────────┐
-               ▼                                  ▼
-┌─────────────────────────┐         ┌─────────────────────────────────────┐
-│  packages/serializers   │         │         apps/worker                  │
-│                         │         │                                     │
-│  form-dsl.ts            │         │  BuilderAgent (Durable Object)      │
-│  layout-dsl.ts          │         │  ├── prompts/ (8 system prompts)    │
-│  api-dsl.ts             │         │  ├── tools/  (8 tool sets)          │
-│  email-dsl.ts           │         │  ├── rag/    (Upstash retrieval)    │
-│  db-dsl.ts              │         │  └── observability.ts (Braintrust)  │
-│  i18n-dsl.ts            │         └─────────────────────────────────────┘
-│  stories-dsl.ts         │
-│  e2e-dsl.ts             │
-│                         │
-│  Tree utilities:        │
-│  findNode  insertNode   │
-│  removeNode moveNode    │
-│  updateNodeClasses      │
-│  applyThemeToTree       │
-└───────────┬─────────────┘
-            │ workspace:*
-            ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                             apps/web                                          │
-│                                                                              │
-│  modules/form-builder/          modules/layout-builder/                      │
-│  modules/api-schema-builder/    modules/email-template-builder/              │
-│  modules/db-schema-builder/     modules/component-story-builder/             │
-│  modules/i18n-manager/          modules/e2e-test-generator/                  │
-│                                                                              │
-│  routes/ (TanStack Router — file-based, type-safe)                           │
-│  context/ (React Context — per-module state isolation)                       │
-│  hooks/   (useBuilderAgent · useMode)                                        │
-└──────────────────────────────────────────────────────────────────────────────┘
-```
+**Exports:** HTML (Tailwind CDN) · React JSX · JSON
 
 ---
 
-## Frontend Architecture
+### API Schema Builder
 
-### Component Hierarchy
+Builds OpenAPI 3.1 specifications. Includes undo/redo, named snapshots, built-in linter, and 7 export formats.
 
-```
-<AppProviders>                           ← ModeProvider, ToolDispatchProvider,
-      │                                     FormBuilderProvider, LayoutBuilderProvider,
-      │                                     EmailBuilderProvider, ApiBuilderProvider
-      └── <RouterProvider>
-              └── <AppShell>             ← ResizablePanelGroup (3 panels)
-                    ├── <ChatPanel>
-                    │     ├── message list (ReactMarkdown for assistant)
-                    │     ├── <ThinkingIndicator>    (Thinking / Applying / Responding)
-                    │     └── <ToolCallStatus>       (active tool name below input)
-                    │
-                    ├── <Outlet>         ← TanStack Router file-based
-                    │     ├── /form    → <FormBuilderPanel>
-                    │     ├── /layout  → <LayoutBuilderPanel>
-                    │     ├── /api     → <ApiSchemaBuilderPanel>
-                    │     ├── /email   → <EmailBuilderPanel>
-                    │     └── /db, /story, /i18n, /e2e → scaffolded panels
-                    │
-                    └── <PreviewFrame>   ← sandboxed <iframe> (when path is /form|/layout|/email|/api)
-```
+**Schema:** `OpenApiSpec` · `ApiEndpoint` · `ApiSchemaObject` · `SecurityScheme`
 
-### State Management Architecture
+**Tools:** `querySpec · updateSpec · addEndpoint · removeEndpoint · updateEndpoint · reorderEndpoints · setRequestBody · addSchemaObject · updateSchemaObject · removeSchemaObject · addTag · removeTag · generateMockData · retrieveDocs`
 
-No global state library. Each module owns its state via an isolated React Context + custom hooks. The contexts are composed at the root and never cross module boundaries.
+**Built-in linter (8 rules, 3 severity levels):**
 
-```
-┌──────────────────── React Context Tree ────────────────────────────────────────┐
-│                                                                                 │
-│  ModeContext            — current BuilderMode ("form"|"layout"|"api"|...)      │
-│  ToolDispatchContext    — { dispatchRef, register }  (single mutable ref)      │
-│                                                                                 │
-│  FormBuilderContext     — { formSchema, setFormSchema }                         │
-│  LayoutBuilderContext   — { layoutTree, setLayoutTree }                         │
-│  EmailBuilderContext    — { template, setTemplate, clientMode }                 │
-│                                                                                 │
-│  (API Builder state lives locally in ApiSchemaBuilderPanel via useApiState)    │
-└─────────────────────────────────────────────────────────────────────────────────┘
-```
+| Rule                               | Level   |
+| ---------------------------------- | ------- |
+| Duplicate method + path            | error   |
+| GET by-ID without 404 response     | warning |
+| Non-kebab-case path segment        | warning |
+| Missing summary                    | warning |
+| POST/PUT/PATCH without requestBody | info    |
+| Mutating endpoint without auth     | info    |
+| No 5xx response defined            | info    |
+| Tag used but not defined           | warning |
 
-Each builder module follows the same hook composition pattern:
+Health score = `100 - (errors × 20) - (warnings × 5) - (infos × 1)`, clamped 0–100.
 
-```
-useApiState()                            ← state + localStorage + undo/redo/reset
-      │  { spec, setSpec, undo, redo, canUndo, canRedo, resetSpec }
-      │
-      ▼
-useApiTools(spec, setSpec)               ← pure tool handlers, no side-effects besides setSpec
-      │  { addEndpoint, removeEndpoint, updateEndpoint, ... }
-      │
-      ▼
-useApiSnapshots()                        ← named snapshots in localStorage (max 5)
-      │  { snapshots, saveSnapshot, deleteSnapshot }
-      │
-      ▼
-<ApiSchemaBuilderPanel>                  ← composes all hooks, registers tool dispatch
-      └── useRegisterToolDispatch(handleToolCall)
-```
-
-### Undo / Redo Architecture
-
-Implemented with past/future arrays — O(1) push, O(1) pop, capped at `MAX_HISTORY = 50`:
-
-```
-State:
-  present:  OpenApiSpec        ← current value
-  past:     OpenApiSpec[]      ← undo stack  (newest at end)
-  future:   OpenApiSpec[]      ← redo stack  (newest at start)
-
-setSpec(next):
-  past = [...past.slice(-49), present]
-  future = []
-  present = next
-  localStorage.setItem(key, JSON.stringify(next))
-
-undo():
-  previous = past.at(-1)
-  future = [present, ...future]
-  past = past.slice(0, -1)
-  present = previous
-
-redo():
-  next = future.at(0)
-  past = [...past, present]
-  future = future.slice(1)
-  present = next
-```
-
-### Tool Dispatch Registration
-
-A single mutable `dispatchRef` is shared via Context. Each module panel registers itself on mount. No stale closures — the ref always points to the current module's handler:
-
-```typescript
-// Context: dispatchRef is a plain object (not React ref) so it can live in context
-interface ToolDispatchContextValue {
-  dispatchRef: { current: ToolDispatcher };
-  register: (fn: ToolDispatcher) => void; // useCallback — stable identity
-}
-
-// Each module panel:
-function useRegisterToolDispatch(fn: ToolDispatcher): void {
-  const { register } = useToolDispatch();
-  const fnRef = useRef<ToolDispatcher>(fn);
-  fnRef.current = fn; // always up-to-date, no re-render
-
-  useEffect(() => {
-    register((call) => fnRef.current(call)); // stable wrapper; fnRef.current is live
-  }, [register]); // runs once on mount — overwrites previous
-}
-```
-
-Route navigation automatically rotates the active dispatcher: when `/form` unmounts and `/api` mounts, `ApiSchemaBuilderPanel` registers its handler, overwriting the form builder's.
-
-### Chat UX — Thinking Phase Indicator
-
-The agent goes through distinct phases during a response. The `ThinkingIndicator` reflects each phase with animated color-coded feedback and an elapsed timer:
-
-```
-Status from useAgentChat     activeToolCall     Phase         Color
-────────────────────────     ──────────────     ──────────    ──────
-"submitted"                  null               Thinking      amber
-"streaming"                  "addEndpoint"      Applying      blue
-"streaming"                  null               Responding    green
-"idle" / "error"             any                (hidden)
-```
-
-The timer resets on every phase transition using a stable `phaseKey = phase + (activeToolCall ?? "")` dependency.
+**Exports:** OpenAPI JSON · OpenAPI YAML · Postman Collection · DSL · TypeScript SDK · cURL Script · Python SDK
 
 ---
 
-## Backend Architecture
+### Email Template Builder
 
-### Durable Object Lifecycle
+Builds responsive HTML email templates section by section. Simulates 4 email clients.
 
-```
-Browser opens /agents/<mode>/<userId>
-        │
-        ▼
-Cloudflare routes to BuilderAgent DO (id = userId)
-        │
-        ├── First request: DO cold-starts, initializes AIChatAgent base
-        │
-        ├── WebSocket upgrade (hibernation API)
-        │     DO persists across WS frames without a running isolate
-        │     CPU billed only during active message processing
-        │
-        ├── onMessage() — custom handler, runs before AIChatAgent
-        │     ├── set_mode    → this.mode  (updated in memory)
-        │     └── update_context → this.context (DSL injected into system prompt)
-        │
-        └── onChatMessage() — called by AIChatAgent per chat message
-              ├── derive mode from DO room name (identity = reliable)
-              ├── buildSystemPrompt(mode, context)
-              ├── getToolsForMode(mode)       ← tool schemas only, no execute()
-              ├── buildRetrieveDocsTool(...)  ← only server-side tool
-              └── streamText(model, { system, tools, messages, maxSteps: 10 })
-```
+**Schema:** `EmailSection` (discriminated union, 8 types) → `EmailTemplate`
 
-### Model Selection Strategy
+**Tools:** `queryTemplate · updateSubject · addSection · updateSection · removeSection · reorderSections · setClientMode · clearTemplate`
 
-```typescript
-// Prefer Claude when key is available; graceful fallback to GPT-4o
-const model = env.ANTHROPIC_API_KEY
-  ? createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })("claude-sonnet-4-6")
-  : createOpenAI({ apiKey: env.OPENAI_API_KEY })("gpt-4o");
-```
+**Client previews:** Desktop · Mobile · Outlook (MSO tables) · Dark mode (CSS injection)
 
-### Tool Architecture — Client-Side Execution
-
-All builder tools have **no `execute` function**. They are schema-only definitions. The agent emits `tool_call` events; the browser executes them and sends back results. This is the core architectural decision: zero-latency preview updates with no round-trip serialization.
-
-```typescript
-// Worker defines tool shape only:
-export const addEndpointTool = tool({
-  description: "Add a new endpoint to the OpenAPI spec",
-  parameters: z.object({
-    id: z.string(),
-    method: HttpMethodSchema,
-    path: z.string(),
-    responses: z.array(ApiResponseSchema),
-    // ... all nullable with .default(null) so agent can omit them
-  }),
-  // NO execute() — client handles it
-});
-
-// Browser executes:
-addEndpoint: (args: unknown): Promise<ToolResult> => {
-  const parsed = ApiEndpointSchema.safeParse(args);
-  if (!parsed.success) return Promise.resolve({ error: parsed.error.message });
-  setSpec((prev) => ({ ...prev, endpoints: [...prev.endpoints, parsed.data] }));
-  return Promise.resolve({ success: true, endpointId: parsed.data.id });
-};
-```
-
-### Zod Validation Boundary Design
-
-A critical detail: agent-omitted optional fields must not fail validation. The schema uses `.nullable().default(null)` — not just `.nullable()` (which requires the field to be present):
-
-```typescript
-// WRONG — agent omits summary → Zod error "Required"
-summary: z.string().nullable();
-
-// CORRECT — agent omits summary → coerces to null
-summary: z.string().nullable().default(null);
-```
-
-This applies at every tool boundary where the LLM is the data producer.
+**Exports:** HTML · DSL · JSON
 
 ---
 
-## Key Design Patterns
+### Component Story Builder
 
-### 1. Compact DSL — Token-Efficient Context
+Generates Storybook CSF3 `.stories.tsx` files with multi-file management.
 
-Each module serializes its state into a hand-crafted compact DSL. This is injected into every system prompt so the agent always sees the current state without the token cost of raw JSON.
+**Schema:** `StoryFile` (variants · argTypes · decorators · tags) → `StoryManagerState`
 
-**API DSL example:**
+**Tools:** `queryStory · setComponent · addVariant · updateVariant · removeVariant · addArgType · removeArgType · addDecorator · addTag · createStoryFile · switchStoryFile · removeStoryFile`
+
+**Features:** Undo/redo · localStorage persist · 5 presets · 8 decorator presets · import from `.stories.tsx` · 4-tab UI (Variants / Controls / Preview / Code)
+
+---
+
+### i18n Manager
+
+Manages translation keys across multiple locales with namespace support.
+
+**Schema:** `I18nKey` · `I18nNamespace` · `I18nStore` · `I18nManagerState` (multi-locale)
+
+**Tools:** `queryStore · addLanguage · removeLanguage · addKey · updateTranslation · removeKey · addNamespace`
+
+**Features:** Missing translation detection · namespace organisation · import from JSON · multi-file export
+
+---
+
+### E2E Test Generator
+
+Generates Playwright `.spec.ts` test files with full multi-file management.
+
+**Schema:** `TestStep` (13 action types) · `TestCase` (+ `beforeEach`) · `TestFile` → `TestManagerState`
+
+**Step types:** `navigate · click · fill · select · check · hover · press · upload · scroll · wait · screenshot · axe · expect`
+
+**Expect types:** `visible · hidden · text · url · count · value · attribute · enabled · disabled · checked`
+
+**Tools:** `querySpec · setFileInfo · addTestCase · updateTestCase · removeTestCase · duplicateTestCase · addStep · updateStep · removeStep · reorderSteps · addBeforeEachStep · reorderTestCases · createTestFile · switchTestFile · removeTestFile · retrieveDocs`
+
+**Features:** Undo/redo · localStorage persist · 5 preset test suites · expand-all/collapse-all · per-step delete · 3-tab UI (Tests / Code / Config)
+
+**Exports:** `.spec.ts` · Page Object Model class · `playwright.config.ts` · DSL · JSON
+
+---
+
+## DSL Examples
+
+### API DSL
 
 ```
 API: Product API v1.0.0 | baseUrl:https://api.example.com | auth:BearerJWT
 
 TAGS: products(Product catalog), orders(Order management)
 
-GET     /products          → 200:Product[], 500:ServerError                    # List products
-POST    /products          → 201:Product, 400:ValidationError  [body:CreateProductInput] [auth]  # Create product
-GET     /products/{id}     → 200:Product, 404:NotFound, 500:ServerError  [path:id]
-PUT     /products/{id}     → 200:Product, 404:NotFound  [body:UpdateProductInput] [path:id] [auth]
-DELETE  /products/{id}     → 204:NoContent, 404:NotFound  [path:id] [auth] [tags:products]
+GET     /products          → 200:Product[], 500:ServerError
+POST    /products          → 201:Product, 400:ValidationError  [body:CreateProductInput] [auth]
+GET     /products/{id}     → 200:Product, 404:NotFound
+PUT     /products/{id}     → 200:Product, 404:NotFound  [body:UpdateProductInput] [auth]
+DELETE  /products/{id}     → 204:NoContent, 404:NotFound  [auth]
 
 SCHEMA Product
   id!: string
   name!: string
   price!: number
   category: string
-  createdAt!: string
 ```
 
-**Email DSL example:**
+### Email DSL
 
 ```
 EMAIL: Welcome Campaign | subject:Welcome to {{company}}!
 header | bg:#1a1a2e
   logo | src:{{logoUrl}} | alt:Logo | width:120
-  hero | headline:Welcome, {{firstName}}! | sub:You're in. | bg:#1a1a2e
-text | Let's get you set up quickly.
+hero | headline:Welcome, {{firstName}}! | sub:You're in.
+text | Let's get you set up in under 5 minutes.
 button | label:Get Started | href:{{ctaUrl}} | bg:#6366f1
 footer | company:{{company}} | year:2026
 ```
 
-**Token comparison:**
-
-| Module               | Raw JSON      | DSL         | Reduction |
-| -------------------- | ------------- | ----------- | :-------: |
-| Form — 10 fields     | ~2 000 tokens | ~200 tokens |  **90%**  |
-| Layout — 20 nodes    | ~3 000 tokens | ~400 tokens |  **87%**  |
-| API Spec — 15 routes | ~4 000 tokens | ~600 tokens |  **85%**  |
-| Email — 8 sections   | ~1 500 tokens | ~150 tokens |  **90%**  |
-
-### 2. Zod as Single Source of Truth
-
-One schema definition drives the entire data pipeline:
+### Storybook DSL
 
 ```
-packages/schemas/src/api.ts
-         │
-         ├─► TypeScript type        type ApiEndpoint = z.infer<typeof ApiEndpointSchema>
-         ├─► Tool parameter def     parameters: ApiEndpointSchema (passed to streamText)
-         ├─► Runtime guard          ApiEndpointSchema.safeParse(toolArgs)
-         ├─► API Linter input       lintApiSpec(spec: OpenApiSpec)
-         └─► Export schema          JSON Schema download / OpenAPI 3.1 generation
+STORY: Button | path:src/components/Button.tsx | layout:centered
+TAGS: autodocs
+ARGTYPE: label | text | default:"Click me"
+ARGTYPE: variant | select | opts:primary,secondary,danger | default:primary
+ARGTYPE: disabled | boolean | default:false
+VARIANT: Primary | label:"Click me" | variant:primary
+VARIANT: Disabled | label:"Click me" | disabled:true
+DECORATOR: ThemeProvider
 ```
 
-### 3. Iframe Security Model
+### E2E DSL
 
 ```
-Parent (React app)                      Sandboxed iframe
-        │                                       │
-        │  iframe.srcDoc = generateHTML(tree)   │
-        │──────────────────────────────────────►│
-        │                                       │  Scripts execute here
-        │                                       │  Tailwind CDN injects styles
-        │                                       │  Cannot read parent DOM
-        │  sandbox="allow-scripts"              │  Cannot access parent cookies
-        │  (NO allow-same-origin)               │  Cannot read parent localStorage
-        │                                       │  Cannot make credentialed fetch
+FILE: auth.spec.ts | url:http://localhost:3000
+DESCRIBE: Authentication flows
+
+TEST: User can log in with valid credentials [smoke,auth]
+  NAVIGATE /login
+  FILL [label="Email"] → "user@example.com"
+  FILL [label="Password"] → "password123"
+  CLICK [role="button"]
+  EXPECT url "/dashboard"
+
+TEST: User sees error with invalid credentials [auth]
+  NAVIGATE /login
+  FILL [label="Email"] → "wrong@example.com"
+  FILL [label="Password"] → "wrongpass"
+  CLICK [role="button"]
+  EXPECT [text="Invalid credentials"] visible
 ```
 
-### 4. API Linter — Pure Function Quality Gate
-
-The API Schema Builder includes a built-in linter (`lintApiSpec`) that runs on every render. 8 rules, three severity levels:
+### i18n DSL
 
 ```
-Rule                                      Level    Example trigger
-─────────────────────────────────────     ───────  ──────────────────────────────────
-Duplicate method+path                     error    GET /users defined twice
-GET by-ID without 404 response            warning  GET /users/{id} → 200 only
-Non-kebab-case path segment               warning  /userOrders (should be /user-orders)
-Missing summary                           warning  endpoint has no summary field
-POST/PUT/PATCH without requestBody        info     POST /users with no body
-Mutating endpoint without auth            info     DELETE /items, no requiresAuth
-No 5xx response defined                   info     endpoint missing 500/502/503
-Tag used but not defined in spec          warning  tags:["products"] but no tagDefinition
-```
+STORE: 3 langs | en(default) · pl · de | 2 namespaces
 
-Health score = `100 - (errors × 20) - (warnings × 5) - (infos × 1)`, clamped 0–100.
+NS: common
+  KEY: app.title
+    en: "AI Platform Builder"
+    pl: "Konstruktor Platformy AI"
+    de: "KI-Plattform-Builder"
+  KEY: nav.login
+    en: "Sign in"
+    pl: "Zaloguj się"
+    de: "Anmelden"
 
-### 5. Eval → Improvement Loop
-
-```
-┌─────────────────┐     ┌───────────────────┐     ┌───────────────────────┐
-│  Run eval suite │────►│  Braintrust UI    │────►│  Identify regression  │
-│  vitest +       │     │  compare runs     │     │  "agent sends wrong   │
-│  scorers        │     │  inspect traces   │     │   field IDs"          │
-└─────────────────┘     └───────────────────┘     └──────────┬────────────┘
-         ▲                                                    │
-         │                                                    ▼
-┌────────┴────────┐     ┌───────────────────┐     ┌───────────────────────┐
-│  Rerun + verify │◄────│  Commit: schema + │◄────│  Fix: schema default, │
-│  score improved │     │  prompt + test    │     │  prompt wording, or   │
-└─────────────────┘     └───────────────────┘     │  tool handler logic   │
-                                                   └───────────────────────┘
-```
-
----
-
-## Monorepo Structure
-
-```
-ai-platform-builder/
-│
-├── apps/
-│   ├── web/                               # React 19 + Vite 5 frontend
-│   │   └── src/
-│   │       ├── routes/                    # TanStack Router (file-based, fully typed)
-│   │       │   ├── __root.tsx             # AppShell: ResizablePanels + agent init
-│   │       │   ├── index.tsx              # Redirect → /form
-│   │       │   ├── form/index.tsx         # ✅ Form Builder page
-│   │       │   ├── layout/index.tsx       # ✅ Layout Builder page
-│   │       │   ├── api/index.tsx          # ✅ API Schema Builder page
-│   │       │   ├── email/index.tsx        # ✅ Email Template Builder page
-│   │       │   ├── db/index.tsx           # DB Schema Builder (scaffolded)
-│   │       │   ├── story/index.tsx        # Component Story Builder (scaffolded)
-│   │       │   ├── i18n/index.tsx         # i18n Manager (scaffolded)
-│   │       │   ├── e2e/index.tsx          # E2E Test Generator (scaffolded)
-│   │       │   └── -components/           # Route-private shared components
-│   │       │       ├── ChatPanel/         # ✅ Streaming chat + ThinkingIndicator
-│   │       │       ├── ModeSwitcher/      # ✅ 8-mode tab navigation
-│   │       │       ├── PreviewFrame/      # ✅ Sandboxed iframe wrapper
-│   │       │       └── ToolCallStatus/    # ✅ Active tool name display
-│   │       │
-│   │       ├── modules/
-│   │       │   ├── form-builder/          # ✅ Fully implemented
-│   │       │   │   ├── hooks/
-│   │       │   │   │   ├── useFormState.ts      # state + localStorage persist
-│   │       │   │   │   └── useFormTools.ts      # 5 client tools (Zod-validated)
-│   │       │   │   ├── FormBuilderPanel.tsx
-│   │       │   │   ├── FieldList.tsx            # @dnd-kit drag-and-drop reorder
-│   │       │   │   ├── FieldItem.tsx
-│   │       │   │   ├── FieldEditor.tsx          # shadcn Sheet slide-over
-│   │       │   │   ├── FormPreview.tsx          # sandboxed iframe HTML preview
-│   │       │   │   └── ExportPanel.tsx          # JSON / React TSX / HTML
-│   │       │   │
-│   │       │   ├── layout-builder/        # ✅ Fully implemented
-│   │       │   │   ├── hooks/
-│   │       │   │   │   ├── useLayoutState.ts
-│   │       │   │   │   ├── useSelectedNode.ts   # click-to-select tree node
-│   │       │   │   │   └── useLayoutTools.ts    # 7 client tools
-│   │       │   │   ├── LayoutBuilderPanel.tsx
-│   │       │   │   ├── ComponentTree.tsx        # recursive expand/collapse tree
-│   │       │   │   ├── TreeNode.tsx             # tag badge + class chip preview
-│   │       │   │   ├── ClassEditor.tsx          # Tailwind class autocomplete
-│   │       │   │   ├── LayoutPreview.tsx        # Tailwind CDN sandboxed iframe
-│   │       │   │   └── ExportPanel.tsx          # HTML / JSX / JSON
-│   │       │   │
-│   │       │   ├── api-schema-builder/    # ✅ Fully implemented
-│   │       │   │   ├── hooks/
-│   │       │   │   │   ├── useApiState.ts       # state + undo/redo + localStorage
-│   │       │   │   │   ├── useApiTools.ts       # 12 client tools
-│   │       │   │   │   └── useApiSnapshots.ts   # named snapshots (max 5)
-│   │       │   │   ├── ApiSchemaBuilderPanel.tsx
-│   │       │   │   ├── EndpointList.tsx         # expandable endpoint cards
-│   │       │   │   ├── SchemaList.tsx           # component schema viewer
-│   │       │   │   ├── ApiInfoSection.tsx       # inline spec metadata editor
-│   │       │   │   ├── LintPanel.tsx            # health score + issue list
-│   │       │   │   ├── SnapshotsPanel.tsx       # save / restore / delete snapshots
-│   │       │   │   ├── ExportPanel.tsx          # 7 export formats
-│   │       │   │   ├── ApiPreview.tsx           # Swagger UI in iframe
-│   │       │   │   └── lint.ts                  # pure lintApiSpec() + lintSummary()
-│   │       │   │
-│   │       │   └── email-template-builder/ # ✅ Fully implemented
-│   │       │       ├── hooks/
-│   │       │       │   └── useEmailTools.ts     # 8 client tools
-│   │       │       ├── EmailBuilderPanel.tsx
-│   │       │       ├── SectionList.tsx          # drag-reorder sections
-│   │       │       ├── SectionEditor.tsx        # per-type inline editor
-│   │       │       ├── PresetsPanel.tsx         # preset templates
-│   │       │       ├── SpamChecker.tsx          # spam score analysis
-│   │       │       └── ExportPanel.tsx          # HTML / DSL / JSON
-│   │       │
-│   │       ├── hooks/
-│   │       │   ├── useBuilderAgent/       # ✅ WebSocket agent + tool dispatch hook
-│   │       │   │   ├── useBuilderAgent.ts       # useAgentChat wrapper + activeToolCall state
-│   │       │   │   └── useBuilderAgent.types.ts # AgentStatus · ChatMessage · ToolCall
-│   │       │   └── useMode/               # ✅ Mode context hook
-│   │       │
-│   │       ├── context/
-│   │       │   ├── toolDispatch/          # ✅ Single-ref tool router
-│   │       │   ├── formBuilder/           # ✅ FormSchema context
-│   │       │   ├── layoutBuilder/         # ✅ LayoutTree context
-│   │       │   └── emailBuilder/          # ✅ EmailTemplate + clientMode context
-│   │       │
-│   │       ├── ui/                        # ✅ ErrorBoundary · EmptyState · ThemeToggle
-│   │       ├── components/ui/             # shadcn/ui (new-york, neutral base)
-│   │       ├── providers/AppProviders.tsx # Context composition root
-│   │       └── utils/cn.ts               # clsx + tailwind-merge
-│   │
-│   └── worker/                            # ✅ Cloudflare Worker + Durable Object
-│       └── src/
-│           ├── agent.ts                   # BuilderAgent DO — mode routing + streamText
-│           ├── types.ts                   # Env · BuilderMode · IncomingMessageSchema
-│           ├── observability.ts           # Braintrust logger factory
-│           ├── prompts/                   # ✅ 8 system prompts (one per mode)
-│           │   ├── form-prompt.ts
-│           │   ├── layout-prompt.ts
-│           │   ├── api-prompt.ts          # REST conventions + schema naming guide
-│           │   ├── email-prompt.ts
-│           │   ├── db-prompt.ts
-│           │   ├── story-prompt.ts
-│           │   ├── i18n-prompt.ts
-│           │   └── e2e-prompt.ts
-│           ├── tools/                     # ✅ 8 tool sets (schema-only, no execute)
-│           │   ├── form-tools.ts
-│           │   ├── layout-tools.ts
-│           │   ├── api-tools.ts           # 10 tools + querySpec + retrieveDocs
-│           │   ├── email-tools.ts
-│           │   ├── db-tools.ts
-│           │   ├── story-tools.ts
-│           │   ├── i18n-tools.ts
-│           │   └── e2e-tools.ts
-│           └── rag/
-│               └── retrieve.ts            # buildRetrieveDocsTool (Upstash Vector)
-│
-├── packages/
-│   ├── schemas/                           # ✅ Shared Zod schemas (single source of truth)
-│   │   └── src/
-│   │       ├── form.ts                    # 13 field types · 8 validation rules
-│   │       ├── layout.ts                  # 16 node types (z.lazy recursive)
-│   │       ├── api.ts                     # OpenApiSpec · ApiEndpoint · SecurityScheme
-│   │       ├── email.ts                   # EmailTemplate · EmailSection (discriminated union)
-│   │       ├── db.ts
-│   │       ├── i18n.ts
-│   │       ├── stories.ts
-│   │       └── e2e.ts
-│   │
-│   ├── serializers/                       # ✅ DSL serializers + tree utilities
-│   │   └── src/
-│   │       ├── form-dsl.ts                # serialize · deserialize
-│   │       ├── layout-dsl.ts             # serialize · deserialize · findNode · insertNode
-│   │       │                             #             removeNode · moveNode · updateNodeClasses
-│   │       │                             #             applyThemeToTree
-│   │       ├── api-dsl.ts                # serialize · deserialize · generateOpenApiJson
-│   │       │                             # generatePostmanCollection · generateTypeScriptSDK
-│   │       │                             # generateCurlScript · generatePythonSDK
-│   │       │                             # generateMockForEndpoint · analyzeSpam
-│   │       ├── email-dsl.ts              # serialize · deserialize · buildPresetSections
-│   │       ├── db-dsl.ts
-│   │       ├── i18n-dsl.ts
-│   │       ├── stories-dsl.ts
-│   │       └── e2e-dsl.ts
-│   │
-│   └── types/                            # Shared TypeScript utility types
-│
-├── evals/                                # 🔲 Braintrust eval harness
-│   ├── datasets/                         # Golden input/output pairs
-│   └── scorers/                          # Code-based quality scorers
-│
-├── corpus/                               # RAG source documents
-│   ├── tailwind/  forms/  api/  email/
-│
-├── docs/                                 # Architecture docs + task specs
-│   ├── architecture.md
-│   ├── architecture-flow.md
-│   ├── database-flow.md
-│   ├── technologies.md
-│   └── tasks/  (TASK-001 … TASK-007)
-│
-├── .github/workflows/ci.yml             # lint → type-check → test → build
-├── eslint.config.mjs                    # ESLint 9 flat config (typescript-eslint strict)
-├── turbo.json                           # Turborepo pipeline (cached builds)
-└── pnpm-workspace.yaml
+NS: auth
+  KEY: login.email
+    en: "Email address"
+    pl: "Adres e-mail"
+    de: "E-Mail-Adresse"
+  KEY: login.submit
+    en: "Sign in"
+    pl: "Zaloguj"
+    de: ⚠ MISSING
 ```
 
 ---
@@ -738,147 +855,55 @@ ai-platform-builder/
 
 ### Frontend
 
-| Concern       | Technology             | Version | Notes                                                          |
-| ------------- | ---------------------- | ------- | -------------------------------------------------------------- |
-| Framework     | React                  | 19.x    | Concurrent features, strict mode, no `use client` directives   |
-| Build         | Vite                   | 5.x     | Fast HMR, native ESM, TanStack Router plugin                   |
-| Language      | TypeScript             | 5.x     | `strict: true`, zero `any`, explicit return types everywhere   |
-| Routing       | TanStack Router        | 1.x     | File-based, fully type-safe, auto-generated `routeTree.gen.ts` |
-| Styling       | Tailwind CSS           | 4.x     | Utility-first — also the _output target_ of Layout Builder     |
-| Components    | shadcn/ui              | latest  | new-york style, neutral base, copy-into-project pattern        |
-| Layout panels | react-resizable-panels | —       | 3-panel: Chat / Builder / Preview with drag-to-resize          |
-| Drag & drop   | @dnd-kit               | 6.x     | Form field and email section reorder                           |
-| ID generation | nanoid                 | 5.x     | `ep_abc123`, `f_xyz789`, `sec_def456`                          |
-| Markdown      | react-markdown         | —       | Renders agent text responses with code, lists, bold            |
+| Concern       | Technology             | Version | Notes                                      |
+| ------------- | ---------------------- | ------- | ------------------------------------------ |
+| Framework     | React                  | 19.x    | Concurrent features, strict mode           |
+| Build         | Vite                   | 5.x     | Fast HMR, native ESM                       |
+| Language      | TypeScript             | 5.x     | `strict: true`, zero `any`                 |
+| Routing       | TanStack Router        | 1.x     | File-based, fully type-safe                |
+| Styling       | Tailwind CSS           | 4.x     | Also the _output target_ of Layout Builder |
+| Components    | shadcn/ui              | latest  | new-york style, neutral base               |
+| Layout panels | react-resizable-panels | —       | 3-panel: Chat / Builder / Preview          |
+| Drag & drop   | @dnd-kit               | 6.x     | Form fields + email sections               |
+| ID generation | nanoid                 | 5.x     | `ep_abc123`, `f_xyz789`, `tc_def456`       |
+| Markdown      | react-markdown         | —       | Assistant responses                        |
 
 ### Backend & Agent
 
-| Concern           | Technology          | Notes                                                         |
-| ----------------- | ------------------- | ------------------------------------------------------------- |
-| Runtime           | Cloudflare Workers  | V8 isolates, zero cold-start, globally distributed at edge    |
-| Stateful sessions | Durable Objects     | One DO per user, WebSocket hibernation API (CPU = 0 at rest)  |
-| Agent SDK         | @cloudflare/ai-chat | `AIChatAgent` base class, `useAgentChat` React hook           |
-| AI SDK            | Vercel AI SDK 4.x   | `streamText`, `tool`, `convertToModelMessages`, `maxSteps`    |
-| LLM (primary)     | Claude Sonnet 4.6   | Best tool-calling accuracy; used when `ANTHROPIC_API_KEY` set |
-| LLM (fallback)    | OpenAI GPT-4o       | Fallback when only `OPENAI_API_KEY` is available              |
-| Embeddings        | text-embedding-3    | 1536 dimensions, Upstash Vector indexing                      |
+| Concern           | Technology          | Notes                                                |
+| ----------------- | ------------------- | ---------------------------------------------------- |
+| Runtime           | Cloudflare Workers  | V8 isolates, globally distributed at edge            |
+| Stateful sessions | Durable Objects     | One DO per user, WebSocket hibernation               |
+| Agent SDK         | @cloudflare/ai-chat | `AIChatAgent` base class, `useAgentChat`             |
+| AI SDK            | Vercel AI SDK 4.x   | `streamText`, `tool`, `maxSteps`                     |
+| LLM primary       | Claude Sonnet 4.6   | Best tool-calling; used when `ANTHROPIC_API_KEY` set |
+| LLM fallback      | OpenAI GPT-4o       | When only `OPENAI_API_KEY` is available              |
+| Embeddings        | text-embedding-3    | 1536-dim, Upstash Vector indexing                    |
 
 ### Data & Validation
 
-| Concern             | Technology     | Notes                                                           |
-| ------------------- | -------------- | --------------------------------------------------------------- |
-| Schema validation   | Zod 4.x        | Single source of truth — types + guards + tool params + exports |
-| Vector DB           | Upstash Vector | Serverless, HTTP REST API (CF Workers compat — no raw TCP)      |
-| Context compression | Custom DSL     | 85–90% token reduction vs raw JSON                              |
-| Persistence         | localStorage   | Per-module state + named snapshots (up to 5)                    |
-| Email delivery      | Resend API     | Send-test-email endpoint, proxied via Vite dev server           |
+| Concern             | Technology     | Notes                                           |
+| ------------------- | -------------- | ----------------------------------------------- |
+| Schema validation   | Zod 4.x        | Types + runtime guards + tool params + exports  |
+| Vector DB           | Upstash Vector | Serverless HTTP REST (CF Workers compatible)    |
+| Context compression | Custom DSL     | 85–90% token reduction vs raw JSON              |
+| Persistence         | localStorage   | Per-module state + named snapshots (max 5)      |
+| Email delivery      | Resend API     | Send-test endpoint, Vite proxies `/api` → :8787 |
 
-### Observability & Quality
+### Quality & Infrastructure
 
-| Concern    | Technology          | Notes                                                       |
-| ---------- | ------------------- | ----------------------------------------------------------- |
-| Evals      | Braintrust          | Experiments, trace logging, prompt versioning with git SHA  |
-| Unit tests | Vitest 2.x          | jsdom env, @testing-library/react, 161 tests passing        |
-| Linting    | ESLint 9            | Flat config, `typescript-eslint` strict, `--max-warnings=0` |
-| Formatting | Prettier 3          | `prettier-plugin-tailwindcss` for consistent class ordering |
-| Git hooks  | Husky + lint-staged | Pre-commit: ESLint + Prettier · Pre-push: `tsc --noEmit`    |
-| Commits    | Commitlint          | Conventional commits enforced on every push                 |
-
-### Infrastructure
-
-| Concern        | Technology            | Notes                                      |
-| -------------- | --------------------- | ------------------------------------------ |
-| Monorepo       | pnpm workspaces       | `workspace:*` linking, single lockfile     |
-| Build pipeline | Turborepo 2.x         | Cached builds, parallel tasks, dep-ordered |
-| CI/CD          | GitHub Actions        | PR: lint → type-check → test → build       |
-| Deployment     | Cloudflare Pages + DO | Automated on merge to `main`               |
-
----
-
-## Module Reference
-
-### Form Builder ✅
-
-Generates and edits HTML forms from natural language. State is a typed `FormSchema` with a list of `FormField` objects validated against a Zod schema.
-
-**Client tools:**
-
-| Tool            | Args                       | Effect                              |
-| --------------- | -------------------------- | ----------------------------------- |
-| `addField`      | `{ field, afterFieldId? }` | Insert Zod-validated field          |
-| `removeField`   | `{ fieldId }`              | Delete field by ID                  |
-| `updateField`   | `{ fieldId, updates }`     | Partial field update (any property) |
-| `reorderFields` | `{ orderedIds }`           | Reorder all fields by ID array      |
-| `querySchema`   | —                          | Return compact DSL string           |
-
-**Field types:** `text · email · password · number · tel · textarea · select · multiselect · checkbox · radio · date · file · hidden`
-
-**Validation rules:** `required · minLength · maxLength · min · max · pattern · email · url`
-
-**Exports:** JSON Schema · React TSX (react-hook-form) · Semantic HTML
-
----
-
-### Layout Builder ✅
-
-Builds page layouts as a typed `LayoutNode` tree. Each node carries Tailwind CSS classes. Rendered live in a sandboxed iframe via the Tailwind CDN. Tree mutations use pure utility functions from `@ai-builder/serializers`.
-
-**Client tools:**
-
-| Tool                 | Args                                                  | Effect                    |
-| -------------------- | ----------------------------------------------------- | ------------------------- |
-| `addComponent`       | `{ node, parentId?, afterSiblingId? }`                | Insert Zod-validated node |
-| `removeComponent`    | `{ nodeId }`                                          | Remove node and subtree   |
-| `updateClasses`      | `{ nodeId, classes, mode }`                           | replace / merge / remove  |
-| `updateContent`      | `{ nodeId, content }`                                 | Update text content       |
-| `nestComponent`      | `{ nodeId, newParentId }`                             | Move node to new parent   |
-| `reorderComponents`  | `{ parentId, orderedIds }`                            | Reorder children          |
-| `duplicateComponent` | `{ nodeId }`                                          | Clone node at same level  |
-| `queryLayout`        | —                                                     | Return compact DSL string |
-| `applyTheme`         | `{ colorScheme?, accentColor?, fontSize?, rounded? }` | Walk tree, apply theme    |
-
-**Exports:** HTML (Tailwind CDN) · React JSX · JSON
-
----
-
-### API Schema Builder ✅
-
-Builds OpenAPI 3.1 specifications from natural language. Includes undo/redo history, named snapshots, an inline spec editor, and a built-in API linter.
-
-**Client tools:**
-
-| Tool                 | Args                                  | Effect                           |
-| -------------------- | ------------------------------------- | -------------------------------- |
-| `querySpec`          | —                                     | Return compact DSL string        |
-| `updateSpec`         | `{ title?, version?, baseUrl?, ... }` | Update spec-level metadata       |
-| `addEndpoint`        | `ApiEndpoint`                         | Insert Zod-validated endpoint    |
-| `removeEndpoint`     | `{ id }`                              | Delete endpoint by ID            |
-| `updateEndpoint`     | `{ id, updates }`                     | Partial endpoint update          |
-| `reorderEndpoints`   | `{ orderedIds }`                      | Reorder by ID array              |
-| `setRequestBody`     | `{ id, schemaRef, contentType? }`     | Attach request body to endpoint  |
-| `addSchemaObject`    | `ApiSchemaObject`                     | Add component schema             |
-| `updateSchemaObject` | `{ name, ...updates }`                | Modify component schema          |
-| `removeSchemaObject` | `{ name }`                            | Delete component schema          |
-| `addTag`             | `{ name, description? }`              | Add tag definition               |
-| `removeTag`          | `{ name }`                            | Remove tag definition            |
-| `generateMockData`   | `{ id }`                              | Generate typed mock for endpoint |
-| `retrieveDocs`       | `{ query }`                           | Server-side RAG passthrough      |
-
-**Exports:** OpenAPI JSON · OpenAPI YAML · Postman Collection · DSL · TypeScript SDK · cURL Script · Python SDK
-
----
-
-### Email Template Builder ✅
-
-Builds responsive HTML email templates section by section. Includes desktop/mobile/Outlook/dark client simulation previews, a spam score analyzer, and preset templates.
-
-**Client tools:** `queryTemplate · updateSubject · addSection · updateSection · removeSection · reorderSections · setClientMode · clearTemplate`
-
-**Section types:** `header · hero · text · button · divider · image · columns · footer`
-
-**Previews:** Desktop · Mobile · Outlook (MSO tables) · Dark mode (CSS injection)
-
-**Exports:** HTML · DSL · JSON
+| Concern        | Technology            | Notes                                                     |
+| -------------- | --------------------- | --------------------------------------------------------- |
+| Unit tests     | Vitest 2.x            | jsdom, @testing-library/react, 161 passing                |
+| Evals          | Braintrust            | Experiments, traces, prompt versioning                    |
+| Linting        | ESLint 9              | Flat config, typescript-eslint strict, `--max-warnings=0` |
+| Formatting     | Prettier 3            | `prettier-plugin-tailwindcss`                             |
+| Git hooks      | Husky + lint-staged   | Pre-commit: ESLint · Pre-push: `tsc --noEmit`             |
+| Commits        | Commitlint            | Conventional commits                                      |
+| Monorepo       | pnpm workspaces       | `workspace:*` linking, single lockfile                    |
+| Build pipeline | Turborepo 2.x         | Cached builds, parallel tasks, dependency-ordered         |
+| CI/CD          | GitHub Actions        | PR: lint → type-check → test → build                      |
+| Deployment     | Cloudflare Pages + DO | Automated on merge to `main`                              |
 
 ---
 
@@ -901,23 +926,42 @@ pnpm install
 ### Development
 
 ```bash
-# Frontend (localhost:5173)
+# Frontend only (localhost:5173) — uses mock agent responses
 pnpm --filter @ai-builder/web dev
 
 # Worker (Miniflare at localhost:8787)
 pnpm --filter @ai-builder/worker dev
 
-# Both concurrently
+# Both concurrently (Vite proxies /api and /agents/* → :8787)
 pnpm dev
 ```
 
 ### Build
 
 ```bash
-# All packages (Turborepo resolves dependency order, uses cache)
+# All packages — Turborepo resolves dependency order and uses build cache
 pnpm build
 
 # Single package
+pnpm --filter @ai-builder/web build
+pnpm --filter @ai-builder/schemas build
+pnpm --filter @ai-builder/serializers build
+```
+
+### Deploy
+
+```bash
+# Set worker secrets
+wrangler secret put ANTHROPIC_API_KEY
+wrangler secret put UPSTASH_URL
+wrangler secret put UPSTASH_TOKEN
+wrangler secret put BRAINTRUST_API_KEY
+wrangler secret put RESEND_API_KEY
+
+# Deploy worker
+pnpm --filter @ai-builder/worker deploy
+
+# Deploy frontend (Cloudflare Pages — or set up via GitHub integration)
 pnpm --filter @ai-builder/web build
 ```
 
@@ -938,9 +982,15 @@ pnpm --filter @ai-builder/web test
 
 # Watch mode
 pnpm --filter @ai-builder/web exec vitest
+
+# Type check (pre-push gate)
+pnpm type-check
+
+# Lint (pre-commit gate, zero warnings allowed)
+pnpm lint
 ```
 
-### Test Coverage
+### Test Coverage by File
 
 | Package                   | File                       |   Tests |
 | ------------------------- | -------------------------- | ------: |
@@ -964,13 +1014,6 @@ pnpm --filter @ai-builder/web exec vitest
 | `@ai-builder/web`         | `lint.test.ts`             |      28 |
 | **Total**                 |                            | **161** |
 
-### Linting & Type Checking
-
-```bash
-pnpm lint           # ESLint all packages
-pnpm type-check     # tsc --noEmit all packages (pre-push gate)
-```
-
 ---
 
 ## Environment Variables
@@ -989,16 +1032,19 @@ pnpm type-check     # tsc --noEmit all packages (pre-push gate)
 
 ## Architecture Decision Record
 
-| Decision                | Choice                                             | Rationale                                                                                                   |
-| ----------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Agent runtime           | Cloudflare Durable Objects                         | One stateful session per user, globally distributed, WebSocket hibernation — CPU cost = 0 between frames    |
-| Tool execution location | Client-side only (no `execute`)                    | Zero-latency preview updates; state stays in React; no round-trip serialization for large schemas           |
-| Context compression     | Custom compact DSL per module                      | 85–90% token reduction vs raw JSON; fits multi-field specs in a single context window                       |
-| Schema validation layer | Zod everywhere, `.nullable().default(null)`        | Single schema → types + guards + tool params. `.default(null)` critical: agent-omitted fields must not fail |
-| Preview sandbox         | `sandbox="allow-scripts"` (no `allow-same-origin`) | Agent-generated class names and content cannot access parent origin, cookies, or localStorage               |
-| Conversation history    | Sliding window (20 messages)                       | Prevents unbounded context growth; DSL re-injected per message provides fresh state without replay          |
-| LLM model               | Claude Sonnet 4.6 (primary), GPT-4o (fallback)     | Claude's superior tool-calling and instruction-following; fallback ensures deployability without Anthropic  |
-| State management        | Local React state + Context (no Redux/Zustand)     | Each module is isolated; no cross-module state; Context is sufficient for current scope                     |
-| Tool dispatcher         | Single mutable ref via Context                     | No re-renders on register; always points to the mounted module's handler; safe across route transitions     |
-| Monorepo tooling        | pnpm workspaces + Turborepo                        | Hard-linked installs, cached builds, incremental pipelines — `pnpm build` in the right order automatically  |
-| Undo/redo               | past[]/future[] arrays, MAX_HISTORY=50             | O(1) push/pop, bounded memory, no external library needed                                                   |
+| #   | Decision                    | Choice                                              | Rationale                                                                                                      |
+| --- | --------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | **Agent runtime**           | Cloudflare Durable Objects                          | One stateful session per user, globally distributed, WebSocket hibernation — CPU cost = 0 between frames       |
+| 2   | **Tool execution location** | Client-side only (no `execute`)                     | Zero-latency preview updates; state stays in React; no round-trip serialization for large schemas              |
+| 3   | **Context compression**     | Custom compact DSL per module                       | 85–90% token reduction vs raw JSON; fits multi-field specs in a single context window                          |
+| 4   | **Schema validation**       | Zod everywhere with `.nullable().default(null)`     | Single schema → types + guards + tool params. `.default(null)` is critical: agent-omitted fields must not fail |
+| 5   | **Preview isolation**       | `sandbox="allow-scripts"` (no `allow-same-origin`)  | Agent-generated HTML cannot access parent origin, cookies, or localStorage                                     |
+| 6   | **Conversation history**    | Sliding window (max 20 messages)                    | Prevents unbounded context growth; DSL re-injected per message provides fresh state without replay             |
+| 7   | **Primary LLM**             | Claude Sonnet 4.6 with GPT-4o fallback              | Claude's superior tool-calling and instruction-following; fallback ensures deployability without Anthropic key |
+| 8   | **State management**        | Local React state + Context (no Redux/Zustand)      | Each module is isolated; no cross-module state; Context is sufficient; no additional bundle weight             |
+| 9   | **Tool dispatcher**         | Single mutable ref via Context                      | No re-renders on register; always points to the mounted module's handler; safe across route transitions        |
+| 10  | **Monorepo tooling**        | pnpm workspaces + Turborepo                         | Hard-linked installs, cached builds, incremental pipelines — `pnpm build` orders automatically                 |
+| 11  | **Undo/redo**               | `past[]` / `future[]` arrays, `MAX_HISTORY = 20-50` | O(1) push/pop, bounded memory, no external library needed                                                      |
+| 12  | **Multi-file state**        | `ManagerState = { files[], activeFileId }`          | Story Builder, i18n, E2E all need multiple output files; consistent pattern across all three                   |
+| 13  | **Step IDs in E2E schema**  | Every `TestStep` has a stable `id`                  | Enables ID-based removal and update (`removeStep`, `updateStep`) instead of fragile index-based mutation       |
+| 14  | **Agentic loop limit**      | `maxSteps: 10`                                      | Allows complex multi-tool sequences (e.g., set file + add 8 test cases + reorder) without infinite loops       |
