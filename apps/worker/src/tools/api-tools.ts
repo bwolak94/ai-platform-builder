@@ -165,6 +165,47 @@ export const apiTools = {
     }),
   }),
 
+  generateMockServer: tool({
+    description:
+      "Generate a runnable Express/Hono mock server file with static fixture responses for all defined endpoints. Returns the full TypeScript source.",
+    inputSchema: z.object({}),
+  }),
+
+  checkBreakingChanges: tool({
+    description:
+      "Compare the current spec against a provided previous spec DSL and list any breaking changes: removed endpoints, removed required fields, changed response schemas, renamed paths.",
+    inputSchema: z.object({
+      previousDsl: z
+        .string()
+        .describe("The previous spec DSL string to compare against the current state"),
+    }),
+  }),
+
+  addRateLimiting: tool({
+    description:
+      "Add rate limiting response headers (X-RateLimit-Limit, X-RateLimit-Remaining, Retry-After) and a 429 Too Many Requests response to the specified endpoints.",
+    inputSchema: z.object({
+      endpointIds: z
+        .array(z.string())
+        .describe("List of endpoint IDs to add rate limiting to. Empty array = apply to all."),
+      limitPerMinute: z
+        .number()
+        .int()
+        .positive()
+        .default(60)
+        .describe("Requests allowed per minute"),
+    }),
+  }),
+
+  generateContractTest: tool({
+    description:
+      "Generate a Pact consumer contract JSON file for the current spec, suitable for consumer-driven contract testing.",
+    inputSchema: z.object({
+      consumerName: z.string().describe("Name of the consuming service, e.g. 'web-frontend'"),
+      providerName: z.string().describe("Name of the API provider service, e.g. 'users-api'"),
+    }),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search documentation for REST best practices, OpenAPI patterns, and HTTP status codes.",

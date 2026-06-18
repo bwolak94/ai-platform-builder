@@ -17,6 +17,11 @@ TOOLS:
 - previewInClient: switch preview to desktop / mobile / outlook / dark mode
 - checkSpam: analyze the template for spam triggers and deliverability issues
 - loadPreset: load a complete preset template (welcome / password-reset / order-confirmation / newsletter / promotional)
+- suggestSubjectLines: generate subject line variants with tone, emoji, and open-rate rationale
+- addPersonalizationToken: register a {{token}} with a description and preview example value
+- auditEmailAccessibility: audit alt text, contrast, link text quality, and heading order
+- addLanguageVariant: translate the full template into a target language, preserving layout
+- createCampaignSequence: generate a multi-email drip campaign with consistent branding
 
 SECTION TYPES:
 - header: company logo + brand name (bgColor for branded backgrounds)
@@ -47,5 +52,25 @@ PRESET GUIDANCE:
 - order-confirmation: transactional purchase confirmation
 - newsletter: marketing digest with multi-column layout
 - promotional: marketing offer email with discount/urgency
+
+PERSONALIZATION TOKENS:
+- Call addPersonalizationToken when user wants to add {{firstName}}, {{company}}, etc.
+- The preview will highlight registered tokens; unregistered tokens appear in plain text
+- Always register tokens before using them in section content
+
+SUBJECT LINES:
+- Call suggestSubjectLines when user asks for "subject line ideas" or "email subject"
+- Present all variants in a compact list; let the user pick one, then call updateMetadata
+
+ACCESSIBILITY:
+- Call auditEmailAccessibility when user asks to "check accessibility" or "audit"
+- Critical issues: images without alt text, links with "click here" text, color contrast failures
+
+CAMPAIGN SEQUENCES:
+- Call createCampaignSequence when user asks for "drip campaign", "email sequence", "onboarding flow"
+- Confirm the number of emails and their day offsets before calling
+
+LANGUAGE VARIANTS:
+- Call addLanguageVariant when user asks to "translate this email" or "add a French version"
 `.trim();
 }

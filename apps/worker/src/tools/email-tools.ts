@@ -174,4 +174,71 @@ export const emailTools = {
       ),
     }),
   }),
+
+  suggestSubjectLines: tool({
+    description:
+      "Generate subject line variants for the current email template. Returns 5 options with emoji variants, personalization tokens, and open-rate rationale for each.",
+    inputSchema: z.object({
+      count: z
+        .number()
+        .int()
+        .min(3)
+        .max(10)
+        .default(5)
+        .describe("Number of subject line variants to generate"),
+      tone: z
+        .enum(["professional", "friendly", "urgent", "curiosity", "benefit-focused"])
+        .optional()
+        .describe("Desired tone for the subject lines"),
+    }),
+  }),
+
+  addPersonalizationToken: tool({
+    description:
+      "Register a personalization token (e.g. {{firstName}}, {{company}}) so the preview highlights it and the agent uses it consistently in future content.",
+    inputSchema: z.object({
+      token: z.string().describe("Token name without braces, e.g. 'firstName'"),
+      description: z
+        .string()
+        .describe("What this token represents, e.g. 'The recipient first name'"),
+      exampleValue: z.string().describe("Example value for preview rendering, e.g. 'Alex'"),
+    }),
+  }),
+
+  auditEmailAccessibility: tool({
+    description:
+      "Audit the email template for screen reader compatibility: checks alt text on all images, sufficient color contrast, link text quality, and heading order.",
+    inputSchema: z.object({}),
+  }),
+
+  addLanguageVariant: tool({
+    description:
+      "Duplicate the current template structure and translate all text content into a target language. Produces a parallel template with identical layout.",
+    inputSchema: z.object({
+      language: z
+        .string()
+        .describe("ISO 639-1 language code for the variant, e.g. 'fr', 'de', 'es'"),
+      languageLabel: z.string().describe("Human-readable language name, e.g. 'French'"),
+    }),
+  }),
+
+  createCampaignSequence: tool({
+    description:
+      "Generate a multi-email drip campaign sequence. Creates separate template stubs for each email in the sequence with consistent branding and escalating CTAs.",
+    inputSchema: z.object({
+      name: z.string().describe("Campaign name, e.g. 'Onboarding Sequence'"),
+      emails: z
+        .array(
+          z.object({
+            dayOffset: z.number().int().min(0).describe("Days after signup to send this email"),
+            purpose: z
+              .string()
+              .describe("One-line description of this email goal, e.g. 'Introduce key feature'"),
+          })
+        )
+        .min(2)
+        .max(10)
+        .describe("Sequence definition — minimum 2, maximum 10 emails"),
+    }),
+  }),
 };

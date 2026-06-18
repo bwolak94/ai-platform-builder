@@ -20,6 +20,10 @@ TOOLS (call querySpec first before any modification):
 - addTag: Add a tag definition (name + description) to the spec
 - removeTag: Remove a tag definition
 - generateMockData: Generate realistic mock data for an endpoint
+- generateMockServer: Generate a runnable Express/Hono mock server TypeScript file
+- checkBreakingChanges: Diff current spec against a previous DSL to list breaking changes
+- addRateLimiting: Add X-RateLimit-* headers and 429 response to endpoints
+- generateContractTest: Generate a Pact consumer contract JSON for the spec
 - retrieveDocs: Search for REST/OpenAPI best practices
 
 DESIGN RULES:
@@ -41,5 +45,22 @@ SCHEMA DESIGN:
 - Create Response schemas for payloads (e.g. User, Post, PaginatedUsers)
 - Use required array to mark mandatory fields
 - Add descriptions to schemas and properties for clarity
+
+RATE LIMITING:
+- When user asks to add rate limiting, use addRateLimiting with endpointIds=[] to apply globally
+- Standard limit is 60/min for public, 1000/min for authenticated endpoints
+- Always add a 429 response with Retry-After header
+
+BREAKING CHANGES:
+- When user pastes a "previous spec" or asks "what changed", call checkBreakingChanges
+- Breaking = removed endpoint, removed required field, changed response status, path rename
+
+MOCK SERVER:
+- Call generateMockServer when user asks to "generate a mock", "test without a backend", or "create stubs"
+- The generated file uses MSW or a simple Express server with fixture data
+
+CONTRACT TESTING:
+- Call generateContractTest when user mentions Pact, consumer-driven contracts, or provider tests
+- Always ask for consumerName and providerName before calling
 `.trim();
 }

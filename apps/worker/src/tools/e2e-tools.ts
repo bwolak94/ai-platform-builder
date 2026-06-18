@@ -49,6 +49,17 @@ const TestStepSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("screenshot"), id: z.string(), name: z.string().nullable() }),
   z.object({ action: z.literal("axe"), id: z.string(), context: z.string().nullable() }),
   z.object({
+    action: z.literal("intercept"),
+    id: z.string(),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+    urlPattern: z.string().describe("URL pattern or glob to intercept, e.g. '**/api/users'"),
+    status: z.number().int().min(100).max(599).describe("HTTP status code to respond with"),
+    body: z
+      .record(z.string(), z.unknown())
+      .nullable()
+      .describe("JSON response body to return (null for empty body)"),
+  }),
+  z.object({
     action: z.literal("expect"),
     id: z.string(),
     type: z.enum([
@@ -196,6 +207,55 @@ export const e2eTools = {
   removeTestFile: tool({
     description: "Remove a test file by id. Cannot remove the last file.",
     inputSchema: z.object({ fileId: z.string() }),
+  }),
+
+  addNetworkIntercept: tool({
+    description:
+      "Add a network interception step to a test case. The step uses page.route() to mock an API call and return a fixture response — enabling tests without a real backend.",
+    inputSchema: z.object({
+      testCaseId: z.string(),
+      method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+      urlPattern: z
+        .string()
+        .describe("URL pattern to intercept, e.g. '**/api/users' or '/api/products'"),
+      status: z.number().int().min(100).max(599).default(200),
+      responseBody: z
+        .record(z.string(), z.unknown())
+        .nullable()
+        .describe("JSON body to return. Null = empty body."),
+      insertBeforeStepId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert before this step ID. Null = prepend to test case."),
+    }),
+  }),
+
+  generateCIConfig: tool({
+    description:
+      "Generate a GitHub Actions workflow YAML that runs Playwright tests in CI. Supports tag-based sharding so smoke/regression/critical subsets run on separate jobs.",
+    inputSchema: z.object({
+      nodeVersion: z.string().default("20").describe("Node.js version for the CI runner"),
+      tags: z
+        .array(z.string())
+        .optional()
+        .describe("Test tags to create separate CI jobs for, e.g. ['smoke', 'regression']"),
+      browsers: z
+        .array(z.enum(["chromium", "firefox", "webkit"]))
+        .default(["chromium"])
+        .describe("Browsers to run in CI"),
+    }),
+  }),
+
+  generateTraceConfig: tool({
+    description:
+      "Generate a playwright.config.ts snippet with trace recording enabled and instructions for opening the HTML trace report locally with 'npx playwright show-trace'.",
+    inputSchema: z.object({
+      traceMode: z
+        .enum(["on", "on-first-retry", "on-all-retries", "retain-on-failure"])
+        .default("on-first-retry")
+        .describe("When to record traces"),
+    }),
   }),
 
   retrieveDocs: tool({

@@ -160,6 +160,47 @@ export const dbTools = {
     inputSchema: z.object({}),
   }),
 
+  generateSeedData: tool({
+    description:
+      "Generate a seed data file (seed.sql or seed.ts for Prisma/Drizzle) with realistic deterministic fixture data for all tables.",
+    inputSchema: z.object({
+      format: z
+        .enum(["sql", "prisma", "drizzle"])
+        .default("sql")
+        .describe("Output format for seed data"),
+      rowsPerTable: z
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .default(5)
+        .describe("Number of seed rows to generate per table"),
+    }),
+  }),
+
+  analyzeQueryPerformance: tool({
+    description:
+      "Analyze the current schema for performance risks: missing indexes on FK columns, unindexed high-cardinality columns, N+1 relation patterns, and tables likely to need pagination. Returns a list of findings with suggested fixes.",
+    inputSchema: z.object({}),
+  }),
+
+  generateGraphQLSchema: tool({
+    description:
+      "Generate a GraphQL SDL schema from the current relational schema, including input types, query/mutation outlines, and resolver stubs.",
+    inputSchema: z.object({}),
+  }),
+
+  generateSupabaseFunction: tool({
+    description:
+      "Generate a typed Supabase Edge Function scaffold with CRUD handlers for a specific table, including RLS-aware queries.",
+    inputSchema: z.object({
+      tableName: z.string().describe("The table to generate the Edge Function for"),
+      operations: z
+        .array(z.enum(["list", "get", "create", "update", "delete"]))
+        .describe("Which CRUD operations to include"),
+    }),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for PostgreSQL patterns, normalization, indexing strategies, and ORM usage.",

@@ -1,4 +1,8 @@
-import { serializeE2eDSL } from "@ai-builder/serializers";
+import {
+  serializeE2eDSL,
+  generatePlaywrightSpec,
+  generatePlaywrightConfig,
+} from "@ai-builder/serializers";
 import { TestCaseSchema, TestStepSchema } from "@ai-builder/schemas";
 import type { TestCase, TestStep, TestManagerState, TestFile } from "@ai-builder/schemas";
 import { nanoid } from "nanoid";
@@ -244,6 +248,115 @@ export function useE2eTools(
         return { files: remaining, activeFileId: newActiveId };
       });
       return Promise.resolve({ success: true });
+    },
+
+    addNetworkIntercept: ({
+      testCaseId,
+      method,
+      urlPattern,
+      status,
+      responseBody,
+      insertBeforeStepId,
+    }: {
+      testCaseId: string;
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      urlPattern: string;
+      status: number;
+      responseBody: Record<string, unknown> | null;
+      insertBeforeStepId?: string | null;
+    }): Promise<ToolResult> => {
+      const step: TestStep = {
+        action: "intercept",
+        id: "step_" + nanoid(6),
+        method,
+        urlPattern,
+        status,
+        body: responseBody,
+      };
+      setActiveFile((prev) => ({
+        ...prev,
+        testCases: prev.testCases.map((tc) => {
+          if (tc.id !== testCaseId) return tc;
+          if (insertBeforeStepId) {
+            const idx = tc.steps.findIndex((s) => s.id === insertBeforeStepId);
+            if (idx !== -1) {
+              const steps = [...tc.steps];
+              steps.splice(idx, 0, step);
+              return { ...tc, steps };
+            }
+          }
+          return { ...tc, steps: [step, ...tc.steps] };
+        }),
+      }));
+      return Promise.resolve({ success: true, stepId: step.id });
+    },
+
+    generateCIConfig: ({
+      nodeVersion = "20",
+      tags,
+      browsers = ["chromium"],
+    }: {
+      nodeVersion?: string;
+      tags?: string[];
+      browsers?: ("chromium" | "firefox" | "webkit")[];
+    }): Promise<ToolResult> => {
+      const browserList = browsers.join(", ");
+      const tagJobs = (tags ?? [])
+        .map(
+          (tag) =>
+            `  test-${tag}:\n` +
+            `    runs-on: ubuntu-latest\n` +
+            `    steps:\n` +
+            `      - uses: actions/checkout@v4\n` +
+            `      - uses: actions/setup-node@v4\n` +
+            `        with:\n` +
+            `          node-version: "${nodeVersion}"\n` +
+            `      - run: npm ci\n` +
+            `      - run: npx playwright install --with-deps ${browsers[0] ?? "chromium"}\n` +
+            `      - run: npx playwright test --grep "@${tag}" --project=${browsers[0] ?? "chromium"}`
+        )
+        .join("\n\n");
+
+      const yaml =
+        `name: Playwright Tests\n\n` +
+        `on:\n` +
+        `  push:\n` +
+        `    branches: [main]\n` +
+        `  pull_request:\n\n` +
+        `jobs:\n` +
+        `  test-full:\n` +
+        `    runs-on: ubuntu-latest\n` +
+        `    steps:\n` +
+        `      - uses: actions/checkout@v4\n` +
+        `      - uses: actions/setup-node@v4\n` +
+        `        with:\n` +
+        `          node-version: "${nodeVersion}"\n` +
+        `      - run: npm ci\n` +
+        `      - run: npx playwright install --with-deps\n` +
+        `      - run: npx playwright test\n` +
+        `        env:\n` +
+        `          BROWSERS: "${browserList}"\n` +
+        (tagJobs ? "\n" + tagJobs : "");
+
+      return Promise.resolve({ success: true, yaml });
+    },
+
+    generateTraceConfig: ({
+      traceMode = "on-first-retry",
+    }: {
+      traceMode?: "on" | "on-first-retry" | "on-all-retries" | "retain-on-failure";
+    }): Promise<ToolResult> => {
+      const config = generatePlaywrightConfig(activeFile);
+      const snippet =
+        `// Add to playwright.config.ts use block:\n` +
+        `use: {\n` +
+        `  trace: "${traceMode}",\n` +
+        `}\n\n` +
+        `// To view traces locally:\n` +
+        `// npx playwright show-trace trace.zip\n\n` +
+        `// Full config:\n` +
+        config;
+      return Promise.resolve({ success: true, snippet, spec: generatePlaywrightSpec(activeFile) });
     },
   };
 }

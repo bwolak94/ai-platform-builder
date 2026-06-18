@@ -104,6 +104,60 @@ export const i18nTools = {
     }),
   }),
 
+  detectUnusedKeys: tool({
+    description:
+      "Compare the defined translation keys against a list of usages extracted from source code. Returns keys that are defined but never referenced in the provided usage list.",
+    inputSchema: z.object({
+      usages: z
+        .array(z.string())
+        .describe(
+          "Flat list of dot-notation keys actually used in source code (extracted from t('key') calls)"
+        ),
+    }),
+  }),
+
+  scoreTranslationQuality: tool({
+    description:
+      "Audit translation quality across all languages. Checks for: missing ICU placeholders in target vs source, suspiciously short/truncated strings, identical source=translation (untranslated), and empty strings.",
+    inputSchema: z.object({
+      language: z
+        .string()
+        .optional()
+        .describe("Scope the audit to one language code. Omit to audit all languages."),
+    }),
+  }),
+
+  setLanguageRTL: tool({
+    description:
+      "Mark a language as right-to-left (RTL). Affects export metadata and adds a note in the preview about required dir='rtl' attributes.",
+    inputSchema: z.object({
+      code: z.string().describe("ISO language code to mark as RTL, e.g. 'ar', 'he', 'fa'"),
+      rtl: z.boolean().default(true).describe("True to mark as RTL, false to remove the flag"),
+    }),
+  }),
+
+  addGlossaryTerm: tool({
+    description:
+      "Lock a translation for a specific term in a target language. Future autoTranslate calls will use this term consistently.",
+    inputSchema: z.object({
+      sourceTerm: z.string().describe("The source language term to lock, e.g. 'Dashboard'"),
+      language: z.string().describe("Target language code for this glossary entry"),
+      targetTerm: z.string().describe("The locked translation to use, e.g. 'Tableau de bord'"),
+    }),
+  }),
+
+  generateVersionDiff: tool({
+    description:
+      "Compare the current store against a provided previous JSON snapshot and return a changelog of added, removed, and modified keys.",
+    inputSchema: z.object({
+      previousSnapshot: z
+        .record(z.string(), z.record(z.string(), z.string()))
+        .describe(
+          "Previous store snapshot as { lang: { 'dot.key': 'value' } } — paste the exported JSON"
+        ),
+    }),
+  }),
+
   retrieveDocs: tool({
     description: "Search docs for i18n patterns, ICU message format, and pluralization.",
     inputSchema: z.object({

@@ -57,6 +57,14 @@ export const TestStepSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("screenshot"), id: z.string(), name: z.string().nullable() }),
   z.object({ action: z.literal("axe"), id: z.string(), context: z.string().nullable() }),
   z.object({
+    action: z.literal("intercept"),
+    id: z.string(),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+    urlPattern: z.string().min(1),
+    status: z.number().int().min(100).max(599),
+    body: z.record(z.string(), z.unknown()).nullable(),
+  }),
+  z.object({
     action: z.literal("expect"),
     id: z.string(),
     type: z.enum([

@@ -129,6 +129,72 @@ export const layoutTools = {
     }),
   }),
 
+  injectPresetSection: tool({
+    description:
+      "Insert a complete pre-built page section at a specified position. Faster than building from scratch.",
+    inputSchema: z.object({
+      preset: z
+        .enum([
+          "hero-centered",
+          "hero-split",
+          "features-grid",
+          "features-list",
+          "testimonials",
+          "pricing-three-tier",
+          "faq-accordion",
+          "team-grid",
+          "newsletter-cta",
+          "stats-bar",
+          "logo-cloud",
+          "footer-links",
+        ])
+        .describe("Preset section type to inject"),
+      parentId: z.string().nullable().optional().describe("Parent node ID. Null = append to root."),
+      afterSiblingId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this sibling. Null = append."),
+    }),
+  }),
+
+  addDarkModeVariants: tool({
+    description:
+      "Add dark: variant classes to a component for dark mode support. The preview panel's theme toggle will reflect the changes.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to add dark mode classes to"),
+      darkClasses: z
+        .array(z.string())
+        .describe("Tailwind dark: classes to add, e.g. ['dark:bg-gray-900', 'dark:text-white']"),
+    }),
+  }),
+
+  exportPage: tool({
+    description:
+      "Generate a complete Astro page (.astro) or Next.js page (page.tsx) file from the current layout tree.",
+    inputSchema: z.object({
+      framework: z.enum(["astro", "nextjs"]).describe("Target framework for the export"),
+      pageTitle: z.string().optional().describe("HTML <title> for the page"),
+    }),
+  }),
+
+  addAnimation: tool({
+    description:
+      "Add Tailwind animate-* or transition-* classes to a component for entrance animations or hover transitions.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to animate"),
+      animationClasses: z
+        .array(z.string())
+        .describe(
+          "Tailwind animation classes, e.g. ['animate-fade-in', 'transition-transform', 'hover:scale-105']"
+        ),
+      trigger: z
+        .enum(["load", "hover", "focus", "scroll"])
+        .optional()
+        .describe("When the animation triggers (informational; affects class choice)"),
+    }),
+  }),
+
   retrieveDocs: tool({
     description: "Search docs for Tailwind patterns, shadcn components, and ARIA guidelines.",
     inputSchema: z.object({

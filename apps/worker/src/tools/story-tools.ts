@@ -138,6 +138,69 @@ export const storyTools = {
     }),
   }),
 
+  addPlayFunction: tool({
+    description:
+      "Add a play function to a story variant to define interaction tests using @storybook/test userEvent and expect. The play function runs after the story renders.",
+    inputSchema: z.object({
+      variantName: z.string().describe("Exact PascalCase variant name to add the play function to"),
+      steps: z
+        .array(
+          z.object({
+            description: z
+              .string()
+              .describe("Human description of the step, e.g. 'Click submit button'"),
+            code: z
+              .string()
+              .describe(
+                "Play function step code string using userEvent/expect, e.g. \"await userEvent.click(canvas.getByRole('button'))\""
+              ),
+          })
+        )
+        .describe("Ordered list of play function steps"),
+    }),
+  }),
+
+  addMSWDecorator: tool({
+    description:
+      "Add a Mock Service Worker (msw) decorator to the story file or a specific variant. Provides mock API responses for network calls made inside the component.",
+    inputSchema: z.object({
+      variantName: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Variant to scope the decorator to. Null = add to Meta (all variants)."),
+      handlers: z
+        .array(
+          z.object({
+            method: z.enum(["get", "post", "put", "patch", "delete"]),
+            url: z.string().describe("URL pattern to mock, e.g. '/api/users'"),
+            status: z.number().int().default(200),
+            response: z.record(z.string(), z.unknown()).describe("JSON response body"),
+          })
+        )
+        .describe("MSW request handlers"),
+    }),
+  }),
+
+  inferStoriesFromInterface: tool({
+    description:
+      "Given a TypeScript interface definition, infer argTypes and generate story variants for each prop combination. Used when the user pastes a component interface.",
+    inputSchema: z.object({
+      interfaceSource: z.string().describe("TypeScript interface or type source code to parse"),
+    }),
+  }),
+
+  generateDesignTokenStory: tool({
+    description:
+      "Generate a design token showcase story file with Color Palette, Typography Scale, and Spacing Scale stories. Useful for documenting a design system.",
+    inputSchema: z.object({
+      title: z
+        .string()
+        .default("Design System/Tokens")
+        .describe("Storybook sidebar title for the token showcase"),
+    }),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for Storybook patterns, CSF3 API, controls configuration, and decorators.",
