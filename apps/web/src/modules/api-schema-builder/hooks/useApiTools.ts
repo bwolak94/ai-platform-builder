@@ -353,6 +353,52 @@ export function useApiTools(spec: OpenApiSpec, setSpec: Setter) {
     retrieveDocs: (_args: { query: string }): Promise<ToolResult> => {
       return Promise.resolve({ success: true });
     },
+
+    generateErrorCatalog: (_args: {
+      errors: { code: string; message: string }[];
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeApiDSL(spec) });
+    },
+
+    addVersioning: ({
+      version,
+      strategy,
+      deprecateExisting,
+    }: {
+      version: string;
+      strategy: "path" | "header";
+      deprecateExisting: boolean;
+    }): Promise<SimpleResult> => {
+      if (strategy === "path") {
+        setSpec((prev) => ({
+          ...prev,
+          endpoints: prev.endpoints.map((e) => ({
+            ...e,
+            path: e.path.startsWith(`/${version}/`) ? e.path : `/${version}${e.path}`,
+            ...(deprecateExisting ? { deprecated: true } : {}),
+          })),
+        }));
+      }
+      return Promise.resolve({ success: true });
+    },
+
+    generateZodValidators: (_args: { outputFormat: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeApiDSL(spec) });
+    },
+
+    detectCircularRefs: (): Promise<ToolResult> => {
+      // Circular ref detection runs on full spec DSL; agent interprets the schema graph
+      return Promise.resolve({ success: true, dsl: serializeApiDSL(spec) });
+    },
+
+    addCORSPolicy: (_args: {
+      allowedOrigins: string[];
+      allowedMethods: string[];
+      allowCredentials: boolean;
+    }): Promise<SimpleResult> => {
+      // CORS documentation — acknowledged; agent adds OPTIONS endpoints and headers in chat
+      return Promise.resolve({ success: true });
+    },
   };
 }
 

@@ -330,6 +330,67 @@ export function useDbTools(schema: DbSchema, setSchema: Setter) {
         message: "Documentation search is handled server-side.",
       });
     },
+
+    addSoftDelete: ({
+      tableNames,
+      columnName = "deleted_at",
+    }: {
+      tableNames: string[];
+      columnName?: string;
+    }): Promise<ToolResult> => {
+      setSchema((prev) => ({
+        ...prev,
+        tables: prev.tables.map((t) => {
+          if (!tableNames.includes(t.name)) return t;
+          const alreadyHas = t.columns.some((c) => c.name === columnName);
+          if (alreadyHas) return t;
+          const newCol: Column = {
+            name: columnName,
+            type: "timestamptz",
+            nullable: true,
+            default: null,
+            unique: null,
+            primaryKey: null,
+            foreignKey: null,
+          };
+          return { ...t, columns: [...t.columns, newCol] };
+        }),
+      }));
+      return Promise.resolve({ success: true, tableNames });
+    },
+
+    generateAuditLog: (_args: {
+      tableNames: string[];
+      includeUserId: boolean;
+    }): Promise<ToolResult> => {
+      // Audit log table + trigger SQL generated agent-side; return current DSL for context
+      return Promise.resolve({ success: true, dsl: serializeDbDSL(schema) });
+    },
+
+    suggestIndexes: (): Promise<ToolResult> => {
+      const suggestions: string[] = [];
+      for (const t of schema.tables) {
+        for (const col of t.columns) {
+          if (col.foreignKey && !(t.indexes ?? []).some((idx) => idx.columns.includes(col.name))) {
+            suggestions.push(`CREATE INDEX ON ${t.name} (${col.name}); -- FK column missing index`);
+          }
+          if (["status", "type", "state"].includes(col.name)) {
+            suggestions.push(
+              `CREATE INDEX ON ${t.name} (${col.name}); -- high-cardinality filter column`
+            );
+          }
+        }
+      }
+      return Promise.resolve({ suggestions });
+    },
+
+    generateTypeormEntities: (): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeDbDSL(schema) });
+    },
+
+    detectDenormalization: (): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeDbDSL(schema) });
+    },
   };
 }
 

@@ -459,6 +459,98 @@ export function useEmailTools(
         return Promise.resolve({ success: true });
       },
 
+      generateMjml: (): Promise<ToolResult> => {
+        return Promise.resolve({ success: true, dsl: serializeEmailDSL(template) });
+      },
+
+      addCountdownTimer: (args: {
+        deadline: string;
+        label: string;
+        afterSectionId?: string | null;
+      }): Promise<ToolResult> => {
+        const flat: FlatSectionInput = {
+          id: "sec_timer_" + nanoid(6),
+          type: "text",
+          content: `${args.label} · ${args.deadline}`,
+        };
+        const built = flatToSection(flat);
+        const parsed = EmailSectionSchema.safeParse(built);
+        if (!parsed.success) return Promise.resolve({ error: parsed.error.message });
+        setTemplate((prev) => {
+          const existing = prev.sections;
+          if (!args.afterSectionId) return { ...prev, sections: [...existing, parsed.data] };
+          const idx = existing.findIndex((s) => s.id === args.afterSectionId);
+          if (idx === -1) return { ...prev, sections: [...existing, parsed.data] };
+          const updated = [...existing];
+          updated.splice(idx + 1, 0, parsed.data);
+          return { ...prev, sections: updated };
+        });
+        return Promise.resolve({ success: true });
+      },
+
+      scoreReadability: (): Promise<ToolResult> => {
+        const allText = template.sections
+          .map((s) => {
+            if (s.type === "hero") return `${s.heading} ${s.subheading ?? ""}`;
+            if (s.type === "text") return s.content;
+            if (s.type === "cta") return `${s.text ?? ""} ${s.cta.label}`;
+            return "";
+          })
+          .join(" ")
+          .trim();
+        const words = allText.split(/\s+/).filter(Boolean).length;
+        const sentences = allText.split(/[.!?]+/).filter(Boolean).length || 1;
+        const avgSentenceLen = Math.round(words / sentences);
+        // Flesch-Kincaid approximation
+        const gradeLevel = Math.max(0, Math.round(0.39 * avgSentenceLen - 1));
+        return Promise.resolve({ gradeLevel, wordCount: words, avgSentenceLength: avgSentenceLen });
+      },
+
+      generateTextVersion: (): Promise<ToolResult> => {
+        const lines = template.sections.map((s) => {
+          if (s.type === "hero") return `${s.heading.toUpperCase()}\n${s.subheading ?? ""}`;
+          if (s.type === "text") return s.content;
+          if (s.type === "cta") return `${s.text ?? ""}\n${s.cta.label}: ${s.cta.url}`;
+          if (s.type === "header") return s.title ? `[ ${s.title} ]` : "";
+          if (s.type === "footer") return `${s.companyName ?? ""} | ${s.address ?? ""}`;
+          return "";
+        });
+        return Promise.resolve({ plainText: lines.filter(Boolean).join("\n\n") });
+      },
+
+      addRssBlock: (args: {
+        feedUrl: string;
+        itemCount: number;
+        afterSectionId?: string | null;
+      }): Promise<ToolResult> => {
+        const cols = Array.from({ length: Math.min(args.itemCount, 3) }, (_, i) => ({
+          heading: `Article ${String(i + 1)}`,
+          body: `From ${args.feedUrl}`,
+          imageUrl: null,
+          ctaLabel: "Read more",
+          ctaUrl: args.feedUrl,
+          ctaBgColor: null,
+        }));
+        const flat: FlatSectionInput = {
+          id: "sec_rss_" + nanoid(6),
+          type: "columns",
+          columns: cols,
+        };
+        const built = flatToSection(flat);
+        const parsed = EmailSectionSchema.safeParse(built);
+        if (!parsed.success) return Promise.resolve({ error: parsed.error.message });
+        setTemplate((prev) => {
+          const existing = prev.sections;
+          if (!args.afterSectionId) return { ...prev, sections: [...existing, parsed.data] };
+          const idx = existing.findIndex((s) => s.id === args.afterSectionId);
+          if (idx === -1) return { ...prev, sections: [...existing, parsed.data] };
+          const updated = [...existing];
+          updated.splice(idx + 1, 0, parsed.data);
+          return { ...prev, sections: updated };
+        });
+        return Promise.resolve({ success: true });
+      },
+
       // Direct client-side helper (not an agent tool): apply section update from SectionEditor
       applySectionEdit: (id: string, updates: FlatUpdate): void => {
         setTemplate((prev) => ({

@@ -317,4 +317,50 @@ export const emailTools = {
       accentColor: z.string().default("#4F46E5").describe("Hex color for the confirm button"),
     }),
   }),
+
+  generateMjml: tool({
+    description:
+      "Convert the current email template into MJML markup. MJML compiles to cross-client HTML and handles Outlook table-based layout automatically. Returns the full MJML source.",
+    inputSchema: z.object({}),
+  }),
+
+  addCountdownTimer: tool({
+    description:
+      "Insert an animated countdown timer section into the template showing days, hours, minutes, and seconds remaining until a deadline. Uses a VML fallback for Outlook compatibility.",
+    inputSchema: z.object({
+      deadline: z.string().describe("ISO 8601 deadline timestamp, e.g. '2025-12-31T23:59:59Z'"),
+      label: z.string().default("Offer ends in").describe("Label shown above the timer"),
+      afterSectionId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this section ID. Null = append."),
+    }),
+  }),
+
+  scoreReadability: tool({
+    description:
+      "Score the readability of all text content in the email using the Flesch-Kincaid grade level formula. Returns a grade level, word count, average sentence length, and suggestions for improving clarity.",
+    inputSchema: z.object({}),
+  }),
+
+  generateTextVersion: tool({
+    description:
+      "Generate a full multi-part MIME plain-text version of the email. Preserves logical structure: headings become uppercase, CTAs include the full URL in parentheses, and links are listed at the end.",
+    inputSchema: z.object({}),
+  }),
+
+  addRssBlock: tool({
+    description:
+      "Add an RSS feed section to the email template that automatically pulls and renders the latest N articles from a feed URL. Generates a placeholder columns section populated with feed item data at send time.",
+    inputSchema: z.object({
+      feedUrl: z.string().describe("RSS feed URL to pull articles from"),
+      itemCount: z.number().int().min(1).max(6).default(3).describe("Number of articles to show"),
+      afterSectionId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this section ID. Null = append."),
+    }),
+  }),
 };

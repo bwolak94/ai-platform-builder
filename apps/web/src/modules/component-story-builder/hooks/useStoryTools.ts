@@ -344,6 +344,56 @@ export function useStoryTools(
       return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
     },
 
+    generateDocsPage: (_args: {
+      description?: string;
+      includeUsageExamples: boolean;
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
+    addThemeVariants: (args: {
+      baseVariantName: string;
+      themes: ("light" | "dark" | "high-contrast")[];
+    }): Promise<ToolResult> => {
+      setActiveFile((prev) => {
+        const base = prev.variants.find((v) => v.name === args.baseVariantName);
+        if (!base) return prev;
+        const themeVariants = args.themes.map((theme) => ({
+          ...base,
+          id: "var_" + nanoid(6),
+          name: `${args.baseVariantName}${theme.charAt(0).toUpperCase() + theme.slice(1).replace("-", "")}`,
+          parameters: { ...(base.parameters ?? {}), backgrounds: { default: theme } },
+        }));
+        return { ...prev, variants: [...prev.variants, ...themeVariants] };
+      });
+      return Promise.resolve({ success: true });
+    },
+
+    generatePropMatrix: (_args: {
+      props: { name: string; values: unknown[] }[];
+    }): Promise<ToolResult> => {
+      // Prop matrix generation is complex; agent outputs variant list from DSL context
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
+    addI18nDecorator: (args: {
+      library: "react-intl" | "i18next";
+      locales: string[];
+    }): Promise<ToolResult> => {
+      const localeList = args.locales.join(", ");
+      const decoratorStr = `(Story, context) => { /* ${args.library} i18n decorator — locales: ${localeList} */ return Story(context); }`;
+      setActiveFile((prev) => ({
+        ...prev,
+        decorators: [...(prev.decorators ?? []), decoratorStr],
+      }));
+      return Promise.resolve({ success: true });
+    },
+
+    inferFromDesignToken: (_args: { tokens: Record<string, unknown> }): Promise<ToolResult> => {
+      // Design token inference — agent generates argTypes and updates default args in chat
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
     // ── Legacy client-side reset ──────────────────────────────────────────────
 
     reset: (): Promise<ToolResult> => {

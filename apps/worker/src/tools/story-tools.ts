@@ -301,4 +301,74 @@ export const storyTools = {
       query: z.string(),
     }),
   }),
+
+  generateDocsPage: tool({
+    description:
+      "Generate a Docs-only story page (autodocs) for the component with a custom Description block, ArgsTable, and usage examples for each variant. Returns the MDX source.",
+    inputSchema: z.object({
+      description: z
+        .string()
+        .optional()
+        .describe("Component description to include in the docs page"),
+      includeUsageExamples: z
+        .boolean()
+        .default(true)
+        .describe("If true, include JSX usage snippets for each variant"),
+    }),
+  }),
+
+  addThemeVariants: tool({
+    description:
+      "Create story variants for each theme mode: duplicates the specified base variant with light, dark, and high-contrast theme backgrounds applied via a backgrounds parameter.",
+    inputSchema: z.object({
+      baseVariantName: z
+        .string()
+        .describe("PascalCase base variant to clone for each theme, e.g. 'Default'"),
+      themes: z
+        .array(z.enum(["light", "dark", "high-contrast"]))
+        .default(["light", "dark"])
+        .describe("Themes to generate variants for"),
+    }),
+  }),
+
+  generatePropMatrix: tool({
+    description:
+      "Generate a full prop matrix of story variants: creates one variant for every combination of the specified prop values (e.g. variant × size × disabled). Useful for visual regression testing.",
+    inputSchema: z.object({
+      props: z
+        .array(
+          z.object({
+            name: z.string().describe("Prop name, e.g. 'variant'"),
+            values: z.array(z.unknown()).describe("Values to combine, e.g. ['primary', 'ghost']"),
+          })
+        )
+        .min(1)
+        .describe("Props to create a matrix for"),
+    }),
+  }),
+
+  addI18nDecorator: tool({
+    description:
+      "Add an i18n decorator to the story file that wraps stories in an IntlProvider (react-intl) or I18nextProvider (i18next). Adds a locale toolbar dropdown and creates locale-specific story variants.",
+    inputSchema: z.object({
+      library: z
+        .enum(["react-intl", "i18next"])
+        .default("i18next")
+        .describe("i18n library to use in the decorator"),
+      locales: z
+        .array(z.string())
+        .default(["en", "de", "fr"])
+        .describe("Locale codes to add to the toolbar dropdown"),
+    }),
+  }),
+
+  inferFromDesignToken: tool({
+    description:
+      "Given a design token JSON (colors, typography, spacing), generate argType definitions with select controls for token-based props (color, size, etc.) and update the component's default args to use token values.",
+    inputSchema: z.object({
+      tokens: z
+        .record(z.string(), z.unknown())
+        .describe("Design token object, e.g. { colors: { primary: '#4F46E5' } }"),
+    }),
+  }),
 };

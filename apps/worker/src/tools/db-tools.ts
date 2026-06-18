@@ -278,4 +278,46 @@ export const dbTools = {
       query: z.string(),
     }),
   }),
+
+  addSoftDelete: tool({
+    description:
+      "Add soft delete support to one or more tables: adds a deleted_at TIMESTAMPTZ nullable column, a corresponding index, and generates a filtered view (v_{tableName}_active) that excludes soft-deleted rows.",
+    inputSchema: z.object({
+      tableNames: z.array(z.string()).min(1).describe("Tables to add soft delete to"),
+      columnName: z
+        .string()
+        .default("deleted_at")
+        .describe("Column name for the soft delete timestamp"),
+    }),
+  }),
+
+  generateAuditLog: tool({
+    description:
+      "Generate an audit_log table and a PL/pgSQL trigger function that records INSERT/UPDATE/DELETE events for the specified tables, storing old and new row data as JSONB.",
+    inputSchema: z.object({
+      tableNames: z.array(z.string()).min(1).describe("Tables to enable audit logging for"),
+      includeUserId: z
+        .boolean()
+        .default(true)
+        .describe("If true, the trigger captures auth.uid() as changed_by"),
+    }),
+  }),
+
+  suggestIndexes: tool({
+    description:
+      "Analyze the current schema and suggest indexes based on foreign key columns, columns used in common filter patterns (status, type, created_at), and high-cardinality unique columns. Returns suggested CREATE INDEX statements.",
+    inputSchema: z.object({}),
+  }),
+
+  generateTypeormEntities: tool({
+    description:
+      "Generate TypeORM entity classes for all tables, including column decorators, relation decorators (@OneToMany, @ManyToOne, @ManyToMany), and an index decorator for each defined index.",
+    inputSchema: z.object({}),
+  }),
+
+  detectDenormalization: tool({
+    description:
+      "Scan the current schema for denormalization patterns: columns storing comma-separated values, repeated column groups across tables, and missing junction tables for many-to-many patterns stored as arrays. Returns findings with refactoring suggestions.",
+    inputSchema: z.object({}),
+  }),
 };

@@ -230,4 +230,57 @@ export const i18nTools = {
       query: z.string(),
     }),
   }),
+
+  syncWithCodebase: tool({
+    description:
+      "Compare the current translation store against a list of keys extracted from source code (t() calls). Adds keys that appear in code but are missing from the store, and flags keys in the store that are unused in code.",
+    inputSchema: z.object({
+      codebaseKeys: z
+        .array(z.string())
+        .describe("All translation keys found in source code via static analysis"),
+      autoAddMissing: z
+        .boolean()
+        .default(true)
+        .describe("If true, automatically add missing keys with empty translations"),
+    }),
+  }),
+
+  suggestMachineTranslations: tool({
+    description:
+      "For each key missing a translation in the target language, suggest a machine-translated value using the source text. Returns suggestions keyed by dot-notation key — caller must confirm before applying via bulkSetTranslations.",
+    inputSchema: z.object({
+      targetLanguage: z.string().describe("ISO 639-1 language code to generate suggestions for"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(20)
+        .describe("Maximum number of suggestions to return"),
+    }),
+  }),
+
+  generateICUPluralForms: tool({
+    description:
+      "Convert a simple source text string into a full ICU MessageFormat plural expression with all CLDR forms for the target language (zero, one, two, few, many, other). Returns the ICU string ready to use as a translation value.",
+    inputSchema: z.object({
+      key: z.string().describe("Dot-notation key to generate plural forms for"),
+      sourceText: z.string().describe("Singular source text, e.g. '{count} item'"),
+      language: z.string().describe("Target language code for CLDR plural rules"),
+    }),
+  }),
+
+  buildTranslationMemory: tool({
+    description:
+      "Build a translation memory from the current store: groups all keys with identical source text across namespaces and returns a lookup table of source text → translations for all languages. Useful for consistency audits and pre-populating new keys.",
+    inputSchema: z.object({}),
+  }),
+
+  exportToArb: tool({
+    description:
+      "Export translations as an ARB (Application Resource Bundle) file for a specific language, compatible with Flutter and Dart's intl package. Returns the JSON ARB content with @metadata annotations.",
+    inputSchema: z.object({
+      language: z.string().describe("ISO 639-1 language code to export, e.g. 'de'"),
+    }),
+  }),
 };

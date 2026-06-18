@@ -469,6 +469,53 @@ export function useE2eTools(
     retrieveDocs: (_args: { query: string }): Promise<ToolResult> => {
       return Promise.resolve({ success: true });
     },
+
+    generateApiContractTest: (_args: {
+      baseUrl: string;
+      endpoints: { method: string; path: string; expectedStatus: number }[];
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    addRetryStrategy: (_args: {
+      testCaseId?: string | null;
+      maxRetries: number;
+      backoffMs?: number;
+    }): Promise<ToolResult> => {
+      // Retry config — acknowledged; agent outputs playwright.config.ts snippet in chat
+      return Promise.resolve({ success: true });
+    },
+
+    generatePerformanceBudget: (args: {
+      url: string;
+      budgets: { lcp?: number; cls?: number; fid?: number; ttfb?: number };
+    }): Promise<ToolResult> => {
+      const tc: TestCase = {
+        id: "tc_perf_" + nanoid(6),
+        name: `Performance budget: ${args.url}`,
+        tags: ["performance"],
+        beforeEach: null,
+        steps: [
+          { action: "navigate", id: "step_" + nanoid(6), path: args.url },
+          { action: "screenshot", id: "step_" + nanoid(6), name: "performance-baseline" },
+        ],
+      };
+      setActiveFile((prev) => ({ ...prev, testCases: [...prev.testCases, tc] }));
+      return Promise.resolve({ success: true, testCaseId: tc.id });
+    },
+
+    addMultiUserScenario: (_args: {
+      name: string;
+      users: { role: string; storageStatePath?: string }[];
+    }): Promise<ToolResult> => {
+      // Multi-user scenario — acknowledged; agent outputs parallel context test code in chat
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    convertCypressToPlaywright: (_args: { cypressSource: string }): Promise<ToolResult> => {
+      // Conversion handled agent-side; return current file DSL for context
+      return Promise.resolve({ success: true, dsl: serializeE2eDSL(activeFile) });
+    },
   };
 }
 

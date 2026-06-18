@@ -216,6 +216,53 @@ export function useFormTools(formSchema: FormSchema, setFormSchema: Setter) {
     retrieveDocs: (_args: { query: string }): Promise<SimpleResult> => {
       return Promise.resolve({ success: true });
     },
+
+    generateMultiStepForm: (_args: {
+      steps: { title: string; fieldIds: string[] }[];
+      framework: string;
+    }): Promise<{ tsx: string }> => {
+      // Code generation handled agent-side; return DSL for agent to use
+      return Promise.resolve({ tsx: serializeFormDSL(formSchema) });
+    },
+
+    addCrossFieldValidation: (_args: {
+      fieldIds: string[];
+      rule: string;
+      errorMessage: string;
+      errorFieldId: string;
+    }): Promise<SimpleResult> => {
+      // Validation rule — acknowledged; agent outputs superRefine snippet in chat
+      return Promise.resolve({ success: true });
+    },
+
+    inferSchemaFromSample: (_args: {
+      sample: Record<string, unknown>;
+      overwrite: boolean;
+    }): Promise<SimpleResult> => {
+      // Schema inference driven by agent via addField calls; client acknowledges
+      return Promise.resolve({ success: true });
+    },
+
+    generateSubmitHandler: (_args: {
+      endpoint: string;
+      method: string;
+      successMessage?: string;
+      redirectTo?: string;
+    }): Promise<{ handler: string }> => {
+      // Handler code generated agent-side; return DSL for agent context
+      return Promise.resolve({ handler: serializeFormDSL(formSchema) });
+    },
+
+    previewAccessibilityTree: (): Promise<{
+      tree: { id: string; role: string; label: string }[];
+    }> => {
+      const tree = formSchema.fields.map((f) => ({
+        id: f.id,
+        role: f.type === "checkbox" ? "checkbox" : "textbox",
+        label: f.label,
+      }));
+      return Promise.resolve({ tree });
+    },
   };
 }
 

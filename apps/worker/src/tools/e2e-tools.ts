@@ -370,4 +370,90 @@ export const e2eTools = {
       "Search docs for Playwright API, locator strategies, assertion patterns, and best practices.",
     inputSchema: z.object({ query: z.string() }),
   }),
+
+  generateApiContractTest: tool({
+    description:
+      "Generate a Playwright API project test file that validates the actual HTTP responses of backend endpoints against an OpenAPI spec snapshot. Checks status codes, required response fields, and content types.",
+    inputSchema: z.object({
+      baseUrl: z.string().describe("API base URL, e.g. 'http://localhost:3000'"),
+      endpoints: z
+        .array(
+          z.object({
+            method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+            path: z.string().describe("Endpoint path, e.g. '/api/users'"),
+            expectedStatus: z.number().int().describe("Expected HTTP status code"),
+          })
+        )
+        .min(1)
+        .describe("Endpoints to include in the contract test"),
+    }),
+  }),
+
+  addRetryStrategy: tool({
+    description:
+      "Add retry configuration to a test case or to the global playwright.config.ts: sets a maximum retry count for flaky tests, with optional exponential backoff between retries.",
+    inputSchema: z.object({
+      testCaseId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Test case to add retries to. Null = add to global config."),
+      maxRetries: z.number().int().min(1).max(5).default(2).describe("Maximum retry attempts"),
+      backoffMs: z
+        .number()
+        .int()
+        .min(0)
+        .optional()
+        .describe("Milliseconds to wait between retries (optional)"),
+    }),
+  }),
+
+  generatePerformanceBudget: tool({
+    description:
+      "Add a performance budget test case that navigates to a URL, captures Web Vitals (LCP, CLS, FID) using the Performance API, and asserts they are within specified thresholds.",
+    inputSchema: z.object({
+      url: z.string().describe("URL to run the performance test against"),
+      budgets: z
+        .object({
+          lcp: z.number().positive().optional().describe("Max LCP in milliseconds (default 2500)"),
+          cls: z.number().positive().optional().describe("Max CLS score (default 0.1)"),
+          fid: z.number().positive().optional().describe("Max FID in milliseconds (default 100)"),
+          ttfb: z
+            .number()
+            .positive()
+            .optional()
+            .describe("Max Time to First Byte in ms (default 800)"),
+        })
+        .describe("Performance budget thresholds"),
+    }),
+  }),
+
+  addMultiUserScenario: tool({
+    description:
+      "Generate a multi-user test scenario using Playwright's browser context isolation: creates two parallel browser contexts (e.g. admin and regular user) that interact with the same UI simultaneously.",
+    inputSchema: z.object({
+      name: z.string().describe("Test case name for this multi-user scenario"),
+      users: z
+        .array(
+          z.object({
+            role: z.string().describe("User role label, e.g. 'admin' or 'viewer'"),
+            storageStatePath: z
+              .string()
+              .optional()
+              .describe("Path to saved auth state for this user"),
+          })
+        )
+        .min(2)
+        .max(4)
+        .describe("User contexts to create (2–4 users)"),
+    }),
+  }),
+
+  convertCypressToPlaywright: tool({
+    description:
+      "Convert a Cypress test file (as text input) to a Playwright spec. Translates cy.visit, cy.get, cy.contains, cy.type, cy.click, cy.should assertions, and Cypress fixtures to their Playwright equivalents.",
+    inputSchema: z.object({
+      cypressSource: z.string().describe("Full Cypress test file source code to convert"),
+    }),
+  }),
 };

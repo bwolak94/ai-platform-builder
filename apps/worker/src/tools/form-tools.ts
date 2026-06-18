@@ -173,4 +173,71 @@ export const formTools = {
       query: z.string().describe("Natural language search query"),
     }),
   }),
+
+  generateMultiStepForm: tool({
+    description:
+      "Generate a complete multi-step form component with step navigation, progress bar, and per-step validation from the current schema. Returns the full TSX source.",
+    inputSchema: z.object({
+      steps: z
+        .array(
+          z.object({
+            title: z.string().describe("Step title, e.g. 'Personal Info'"),
+            fieldIds: z.array(z.string()).describe("Field IDs included in this step"),
+          })
+        )
+        .min(2)
+        .describe("Step definitions — at least 2 required"),
+      framework: z
+        .enum(["react-hook-form", "formik", "plain"])
+        .default("react-hook-form")
+        .describe("Form library to use in generated code"),
+    }),
+  }),
+
+  addCrossFieldValidation: tool({
+    description:
+      "Add a cross-field validation rule: a superRefine check on the form Zod schema that validates a relationship between two or more fields (e.g. password must match confirmPassword, end date must be after start date).",
+    inputSchema: z.object({
+      fieldIds: z.array(z.string()).min(2).describe("Field IDs involved in the validation"),
+      rule: z
+        .string()
+        .describe("Human-readable rule description, e.g. 'confirmPassword must equal password'"),
+      errorMessage: z.string().describe("Error message to display when the rule fails"),
+      errorFieldId: z.string().describe("Field ID where the cross-field error should be displayed"),
+    }),
+  }),
+
+  inferSchemaFromSample: tool({
+    description:
+      "Infer a form schema from a sample data object or JSON. Converts each key to a form field, guessing type, label, and validation from the value type and key name.",
+    inputSchema: z.object({
+      sample: z
+        .record(z.string(), z.unknown())
+        .describe("Sample data object to infer the form schema from"),
+      overwrite: z
+        .boolean()
+        .default(false)
+        .describe("If true, replace all existing fields; if false, append new fields"),
+    }),
+  }),
+
+  generateSubmitHandler: tool({
+    description:
+      "Generate a typed onSubmit handler function for the current form: includes API call, optimistic update, error toast, and loading state. Returns the TypeScript function source.",
+    inputSchema: z.object({
+      endpoint: z.string().describe("API endpoint URL, e.g. '/api/users'"),
+      method: z
+        .enum(["POST", "PUT", "PATCH"])
+        .default("POST")
+        .describe("HTTP method for the submit request"),
+      successMessage: z.string().optional().describe("Toast message on success"),
+      redirectTo: z.string().optional().describe("Path to navigate to on success"),
+    }),
+  }),
+
+  previewAccessibilityTree: tool({
+    description:
+      "Return a simplified ARIA accessibility tree for the current form: lists each field with its role, accessible name, description, and any detected issues. Useful for screen-reader testing.",
+    inputSchema: z.object({}),
+  }),
 };

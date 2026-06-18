@@ -410,6 +410,84 @@ export function useI18nTools(store: TranslationStore, setStore: Setter) {
       return Promise.resolve({ summary });
     },
 
+    syncWithCodebase: (args: {
+      codebaseKeys: string[];
+      autoAddMissing: boolean;
+    }): Promise<ToolResult> => {
+      const codebaseSet = new Set(args.codebaseKeys);
+      const storeSet = new Set(store.keys.map((k) => k.key));
+      const unused = [...storeSet].filter((k) => !codebaseSet.has(k));
+      const missing = [...codebaseSet].filter((k) => !storeSet.has(k));
+
+      if (args.autoAddMissing && missing.length > 0) {
+        setStore((prev) => {
+          const newKeys: TranslationKey[] = missing.map((key) => ({
+            id: "key_" + nanoid(6),
+            key,
+            sourceText: "",
+            context: null,
+            sourceModule: null,
+            translations: Object.fromEntries(prev.activeLanguages.map((l) => [l, null])),
+            isPlural: null,
+          }));
+          return { ...prev, keys: [...prev.keys, ...newKeys] };
+        });
+      }
+
+      return Promise.resolve({ added: missing.length, unused, missingCount: missing.length });
+    },
+
+    suggestMachineTranslations: (args: {
+      targetLanguage: string;
+      limit: number;
+    }): Promise<ToolResult> => {
+      const missing = store.keys
+        .filter((k) => !k.translations[args.targetLanguage] && k.sourceText)
+        .slice(0, args.limit)
+        .map((k) => ({ key: k.key, sourceText: k.sourceText }));
+      return Promise.resolve({ suggestions: missing, count: missing.length });
+    },
+
+    generateICUPluralForms: (args: {
+      key: string;
+      sourceText: string;
+      language: string;
+    }): Promise<ToolResult> => {
+      // ICU plural form generation handled agent-side; return current store state
+      return Promise.resolve({
+        success: true,
+        key: args.key,
+        language: args.language,
+        dsl: serializeI18nDSL(store),
+      });
+    },
+
+    buildTranslationMemory: (): Promise<ToolResult> => {
+      const memory: Record<string, Record<string, string>> = {};
+      for (const k of store.keys) {
+        if (!k.sourceText) continue;
+        const translations: Record<string, string> = {};
+        for (const [lang, val] of Object.entries(k.translations)) {
+          if (val) translations[lang] = val;
+        }
+        if (Object.keys(translations).length > 0) {
+          memory[k.sourceText] = { ...(memory[k.sourceText] ?? {}), ...translations };
+        }
+      }
+      return Promise.resolve({ memory, termCount: Object.keys(memory).length });
+    },
+
+    exportToArb: (args: { language: string }): Promise<ToolResult> => {
+      const arb: Record<string, unknown> = { "@@locale": args.language };
+      for (const k of store.keys) {
+        const val = k.translations[args.language];
+        if (!val) continue;
+        arb[k.key] = val;
+        arb[`@${k.key}`] = { description: k.context ?? k.key };
+      }
+      return Promise.resolve({ arb: JSON.stringify(arb, null, 2) });
+    },
+
     // ── Store lifecycle ────────────────────────────────────────────────────────
 
     resetStore: (): Promise<ToolResult> => {

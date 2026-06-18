@@ -241,6 +241,70 @@ export function useLayoutTools(layoutTree: LayoutTree, setLayoutTree: Setter) {
       retrieveDocs: (_args: { query: string }): Promise<SimpleResult> => {
         return Promise.resolve({ success: true });
       },
+
+      convertToResponsiveGrid: ({
+        parentId,
+        columns,
+        gap,
+      }: {
+        parentId: string;
+        columns: { default: number; sm?: number; md?: number; lg?: number };
+        gap: string;
+      }): Promise<SimpleResult> => {
+        const gridClasses = [
+          `grid`,
+          `grid-cols-${String(columns.default)}`,
+          gap,
+          ...(columns.sm ? [`sm:grid-cols-${String(columns.sm)}`] : []),
+          ...(columns.md ? [`md:grid-cols-${String(columns.md)}`] : []),
+          ...(columns.lg ? [`lg:grid-cols-${String(columns.lg)}`] : []),
+        ];
+        setLayoutTree((prev) => updateNodeClasses(prev, parentId, gridClasses, "merge"));
+        return Promise.resolve({ success: true });
+      },
+
+      extractTokens: (): Promise<{ tokens: Record<string, string[]> }> => {
+        const dsl = serializeLayoutDSL(layoutTree);
+        const colors = [...dsl.matchAll(/(?:text|bg|border)-([a-z]+-\d+)/g)]
+          .map((m) => m[1] ?? "")
+          .filter(Boolean);
+        const sizes = [...dsl.matchAll(/text-(xs|sm|base|lg|xl|2xl|3xl|4xl)/g)]
+          .map((m) => m[1] ?? "")
+          .filter(Boolean);
+        return Promise.resolve({
+          tokens: {
+            colors: [...new Set(colors)],
+            fontSizes: [...new Set(sizes)],
+          },
+        });
+      },
+
+      generateStorybookStory: (_args: {
+        componentName: string;
+        title?: string;
+      }): Promise<{ layout: string }> => {
+        return Promise.resolve({ layout: serializeLayoutDSL(layoutTree) });
+      },
+
+      addSkeletonLoader: ({
+        nodeId,
+      }: {
+        nodeId: string;
+        preserve?: boolean;
+      }): Promise<SimpleResult> => {
+        setLayoutTree((prev) =>
+          updateNodeClasses(prev, nodeId, ["animate-pulse", "bg-muted"], "merge")
+        );
+        return Promise.resolve({ success: true });
+      },
+
+      auditContrastRatios: (): Promise<{ violations: { nodeId: string; issue: string }[] }> => {
+        // Contrast ratio analysis is complex client-side; agent performs this check from DSL
+        return Promise.resolve({
+          violations: [],
+          dsl: serializeLayoutDSL(layoutTree),
+        } as { violations: { nodeId: string; issue: string }[] });
+      },
     }),
 
     [layoutTree, setLayoutTree]

@@ -282,4 +282,58 @@ export const layoutTools = {
       query: z.string(),
     }),
   }),
+
+  convertToResponsiveGrid: tool({
+    description:
+      "Convert a list of sibling nodes into a responsive CSS Grid layout: wraps them in a grid container with configurable column counts per breakpoint and gap.",
+    inputSchema: z.object({
+      parentId: z.string().describe("ID of the container whose children should become a grid"),
+      columns: z
+        .object({
+          default: z.number().int().min(1).max(6).default(1).describe("Columns on mobile"),
+          sm: z.number().int().min(1).max(6).optional().describe("Columns at sm breakpoint"),
+          md: z.number().int().min(1).max(6).optional().describe("Columns at md breakpoint"),
+          lg: z.number().int().min(1).max(12).optional().describe("Columns at lg breakpoint"),
+        })
+        .describe("Column count per breakpoint"),
+      gap: z.string().default("gap-6").describe("Tailwind gap class, e.g. 'gap-4' or 'gap-8'"),
+    }),
+  }),
+
+  extractTokens: tool({
+    description:
+      "Scan all nodes in the current layout tree and extract a design token map: unique colors, font sizes, border radii, and spacing values from Tailwind classes. Returns the token map as a JSON object.",
+    inputSchema: z.object({}),
+  }),
+
+  generateStorybookStory: tool({
+    description:
+      "Generate a Storybook CSF3 story file (.stories.tsx) from the current layout tree, wrapping the full layout as a single Default story with viewport parameters for mobile, tablet, and desktop.",
+    inputSchema: z.object({
+      componentName: z
+        .string()
+        .describe("PascalCase component name for the story, e.g. 'LandingPage'"),
+      title: z.string().optional().describe("Storybook sidebar title, e.g. 'Pages/LandingPage'"),
+    }),
+  }),
+
+  addSkeletonLoader: tool({
+    description:
+      "Replace the content of a container node with a skeleton loading placeholder: substitutes text nodes with animated gray bars and image nodes with gray rectangles using Tailwind animate-pulse.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the container node to convert to a skeleton state"),
+      preserve: z
+        .boolean()
+        .default(false)
+        .describe(
+          "If true, add a data-skeleton attribute instead of replacing classes (allows CSS toggle)"
+        ),
+    }),
+  }),
+
+  auditContrastRatios: tool({
+    description:
+      "Scan all text and background color class pairs in the layout tree and check WCAG 2.1 AA contrast ratios. Returns a list of violations with the node ID, color pair, actual ratio, and required ratio.",
+    inputSchema: z.object({}),
+  }),
 };

@@ -289,4 +289,76 @@ export const apiTools = {
       query: z.string(),
     }),
   }),
+
+  generateErrorCatalog: tool({
+    description:
+      "Generate a standardized error catalog schema component (ErrorResponse) and a corresponding enum (ErrorCode) listing all business error codes used across the spec. Adds a 400/422 response referencing ErrorResponse to all relevant endpoints.",
+    inputSchema: z.object({
+      errors: z
+        .array(
+          z.object({
+            code: z.string().describe("SCREAMING_SNAKE_CASE error code, e.g. 'INVALID_EMAIL'"),
+            message: z.string().describe("Human-readable description of this error"),
+          })
+        )
+        .min(1)
+        .describe("Error codes to include in the catalog"),
+    }),
+  }),
+
+  addVersioning: tool({
+    description:
+      "Add API versioning to the spec: prefixes all endpoint paths with a version segment (e.g. /v1/) and updates the base URL. Optionally creates a v2 copy of a specified endpoint for migration.",
+    inputSchema: z.object({
+      version: z.string().default("v1").describe("Version prefix, e.g. 'v1' or 'v2'"),
+      strategy: z
+        .enum(["path", "header"])
+        .default("path")
+        .describe(
+          "Versioning strategy: path adds /v1/ prefix; header adds Accept-Version parameter"
+        ),
+      deprecateExisting: z
+        .boolean()
+        .default(false)
+        .describe("Mark all existing endpoints without the version prefix as deprecated"),
+    }),
+  }),
+
+  generateZodValidators: tool({
+    description:
+      "Generate a TypeScript file with Zod schema validators for all schema components in the spec. Each schema becomes a z.object() with field types inferred from the OpenAPI type strings.",
+    inputSchema: z.object({
+      outputFormat: z
+        .enum(["module", "barrel"])
+        .default("barrel")
+        .describe(
+          "module = one export per schema in the same file; barrel = separate files with index.ts"
+        ),
+    }),
+  }),
+
+  detectCircularRefs: tool({
+    description:
+      "Detect circular schema references in the spec (e.g. schema A has a property that references schema B which references A). Returns any cycles found with the reference chain.",
+    inputSchema: z.object({}),
+  }),
+
+  addCORSPolicy: tool({
+    description:
+      "Add CORS headers documentation to the spec: adds an OPTIONS method to each endpoint and documents Access-Control-Allow-Origin, Access-Control-Allow-Headers, and Access-Control-Allow-Methods response headers.",
+    inputSchema: z.object({
+      allowedOrigins: z
+        .array(z.string())
+        .default(["*"])
+        .describe("Allowed CORS origins, e.g. ['https://example.com'] or ['*']"),
+      allowedMethods: z
+        .array(z.string())
+        .default(["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"])
+        .describe("Allowed HTTP methods"),
+      allowCredentials: z
+        .boolean()
+        .default(false)
+        .describe("Whether to include Access-Control-Allow-Credentials: true"),
+    }),
+  }),
 };
