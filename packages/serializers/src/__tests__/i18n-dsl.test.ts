@@ -159,16 +159,13 @@ describe("getMissingKeys", () => {
 
   it("includes auth.login.title as missing for de", () => {
     const missing = getMissingKeys(baseStore);
-    const missingForDe = missing.filter((m) => m.language === "de");
-    const keys = missingForDe.map((m) => m.key);
-    expect(keys).toContain("auth.login.title");
+    const entry = missing.find((m) => m.key === "auth.login.title");
+    expect(entry?.missingLanguages).toContain("de");
   });
 
   it("does not report complete translations as missing", () => {
     const missing = getMissingKeys(baseStore);
-    const isMissingEnSubmit = missing.some(
-      (m) => m.key === "auth.login.submit" && m.language === "en"
-    );
-    expect(isMissingEnSubmit).toBe(false);
+    const entry = missing.find((m) => m.key === "auth.login.submit");
+    expect(entry?.missingLanguages ?? []).not.toContain("en");
   });
 });
