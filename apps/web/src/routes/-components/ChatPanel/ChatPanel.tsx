@@ -321,8 +321,12 @@ export function ChatPanel({
                 )}
               </div>
             ))}
+          </div>
+        )}
 
-            {isLoading && <ThinkingIndicator status={status} activeToolCall={activeToolCall} />}
+        {isLoading && (
+          <div className="mt-3">
+            <ThinkingIndicator status={status} activeToolCall={activeToolCall} />
           </div>
         )}
 
