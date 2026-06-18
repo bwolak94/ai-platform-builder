@@ -201,6 +201,99 @@ export const storyTools = {
     }),
   }),
 
+  generateA11yTests: tool({
+    description:
+      "Add axe-core accessibility assertions to a variant's play function. Imports @axe-core/playwright and asserts zero critical violations after the story renders.",
+    inputSchema: z.object({
+      variantName: z.string().describe("PascalCase variant name to add accessibility tests to"),
+      context: z
+        .string()
+        .nullable()
+        .optional()
+        .describe(
+          "CSS selector to scope the axe scan to, e.g. '#storybook-root'. Null = full page"
+        ),
+    }),
+  }),
+
+  addResponsiveStory: tool({
+    description:
+      "Create viewport-specific story variants for mobile, tablet, and desktop breakpoints. Each variant shares the same args but sets a different Storybook viewport parameter.",
+    inputSchema: z.object({
+      baseVariantName: z
+        .string()
+        .describe("PascalCase base variant to clone for each viewport, e.g. 'Default'"),
+    }),
+  }),
+
+  generateSnapshotTest: tool({
+    description:
+      "Generate a Jest/Vitest snapshot test file for the active story file that renders each variant with @storybook/testing-library and calls toMatchSnapshot().",
+    inputSchema: z.object({}),
+  }),
+
+  addChromatiConfig: tool({
+    description:
+      "Add a Chromatic visual regression configuration to the story file: sets chromatic parameters (delay, diffThreshold, viewports) and returns the required package.json script.",
+    inputSchema: z.object({
+      projectToken: z
+        .string()
+        .optional()
+        .describe("Chromatic project token placeholder (safe to leave as ENV var reference)"),
+      viewports: z
+        .array(z.number().int().positive())
+        .default([320, 768, 1280])
+        .describe("Viewport widths for Chromatic snapshots"),
+      diffThreshold: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.063)
+        .describe("Pixel diff threshold (0–1) before Chromatic flags a change"),
+    }),
+  }),
+
+  inferStoriesFromProps: tool({
+    description:
+      "Given a list of component prop names and their TypeScript types as strings, infer argType controls and generate a story variant for each prop's meaningful states (e.g. disabled, loading, error).",
+    inputSchema: z.object({
+      props: z
+        .array(
+          z.object({
+            name: z.string().describe("Prop name, e.g. 'variant'"),
+            type: z.string().describe("TypeScript type string, e.g. \"'primary' | 'ghost'\""),
+            required: z.boolean().optional(),
+          })
+        )
+        .describe("Props to generate stories for"),
+    }),
+  }),
+
+  generateInteractionTest: tool({
+    description:
+      "Generate a comprehensive interaction test suite for a component: keyboard navigation, ARIA state transitions, focus management, and screen reader announcements, using @storybook/test.",
+    inputSchema: z.object({
+      variantName: z.string().describe("PascalCase variant to add the interaction test to"),
+      interactions: z
+        .array(
+          z.enum([
+            "keyboard-nav",
+            "focus-trap",
+            "aria-expanded",
+            "aria-checked",
+            "screen-reader-text",
+          ])
+        )
+        .describe("Which interaction patterns to test"),
+    }),
+  }),
+
+  exportToMDX: tool({
+    description:
+      "Export the active story file as an MDX documentation page (.stories.mdx) with a Description block, Canvas previews for each variant, and an ArgsTable.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for Storybook patterns, CSF3 API, controls configuration, and decorators.",

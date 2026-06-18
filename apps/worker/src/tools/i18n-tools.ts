@@ -158,6 +158,72 @@ export const i18nTools = {
     }),
   }),
 
+  mergeNamespaces: tool({
+    description:
+      "Merge all keys from a source namespace into a target namespace and remove the source namespace. Key paths are re-prefixed: 'source.foo' → 'target.foo'.",
+    inputSchema: z.object({
+      sourceNamespace: z.string().describe("Namespace prefix to merge from, e.g. 'auth'"),
+      targetNamespace: z.string().describe("Namespace prefix to merge into, e.g. 'common'"),
+    }),
+  }),
+
+  splitNamespace: tool({
+    description:
+      "Extract a set of keys matching a prefix into a new sub-namespace. E.g. move all 'checkout.payment.*' keys into a new 'payment' namespace.",
+    inputSchema: z.object({
+      keyPrefix: z.string().describe("Full key prefix to extract, e.g. 'checkout.payment'"),
+      newNamespace: z.string().describe("New namespace root, e.g. 'payment'"),
+    }),
+  }),
+
+  findDuplicateValues: tool({
+    description:
+      "Find translation keys that have identical source text (potential consolidation candidates). Returns groups of keys sharing the same source value.",
+    inputSchema: z.object({
+      language: z
+        .string()
+        .optional()
+        .describe("Language to check for duplicate values. Defaults to source language."),
+    }),
+  }),
+
+  generateTypeFile: tool({
+    description:
+      "Generate a TypeScript declaration file with a typed TranslationKeys union and a typed t() helper, enabling compile-time key safety with i18next or next-intl.",
+    inputSchema: z.object({
+      outputFormat: z
+        .enum(["i18next", "next-intl", "react-intl"])
+        .default("i18next")
+        .describe("Target i18n library for the generated types"),
+    }),
+  }),
+
+  exportToXliff: tool({
+    description:
+      "Export translations as an XLIFF 2.0 XML file for a specific language pair, ready for professional CAT tools like OmegaT, SDL Trados, or MemoQ.",
+    inputSchema: z.object({
+      sourceLanguage: z.string().describe("Source language code, e.g. 'en'"),
+      targetLanguage: z.string().describe("Target language code, e.g. 'de'"),
+    }),
+  }),
+
+  setPluralRules: tool({
+    description:
+      "Configure plural rule categories for a language (CLDR plural rules: zero, one, two, few, many, other). Adds placeholder translation keys for each plural form.",
+    inputSchema: z.object({
+      language: z.string().describe("ISO language code to configure plurals for"),
+      forms: z
+        .array(z.enum(["zero", "one", "two", "few", "many", "other"]))
+        .describe("CLDR plural forms supported by this language"),
+    }),
+  }),
+
+  generateNamespaceSummary: tool({
+    description:
+      "Generate a Markdown summary report grouped by namespace: total keys, completion percentage per language, and list of missing translations.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description: "Search docs for i18n patterns, ICU message format, and pluralization.",
     inputSchema: z.object({

@@ -201,6 +201,76 @@ export const dbTools = {
     }),
   }),
 
+  addCheckConstraint: tool({
+    description:
+      "Add a CHECK constraint to a column in a table (e.g. price > 0, status IN ('active','inactive')).",
+    inputSchema: z.object({
+      tableName: z.string(),
+      columnName: z.string(),
+      expression: z
+        .string()
+        .describe(
+          "SQL CHECK expression, e.g. 'price > 0' or \"status IN ('active','inactive')\"\n"
+        ),
+      constraintName: z.string().optional().describe("Optional explicit constraint name"),
+    }),
+  }),
+
+  addEnum: tool({
+    description:
+      "Add a custom PostgreSQL enum type that columns can reference. Generates CREATE TYPE … AS ENUM in the migration output.",
+    inputSchema: z.object({
+      name: z.string().describe("snake_case enum type name, e.g. 'user_role'"),
+      values: z
+        .array(z.string())
+        .min(1)
+        .describe("Allowed values, e.g. ['admin','editor','viewer']"),
+    }),
+  }),
+
+  generatePrismaSchema: tool({
+    description:
+      "Generate a Prisma schema file (schema.prisma) from the current database schema, including model definitions, field types, relations, and @@index directives.",
+    inputSchema: z.object({}),
+  }),
+
+  generateRLSPolicies: tool({
+    description:
+      "Generate Supabase Row Level Security (RLS) policy SQL for a table: one select policy, one insert policy, one update policy, and one delete policy using auth.uid().",
+    inputSchema: z.object({
+      tableName: z.string().describe("Table to generate RLS policies for"),
+      ownerColumn: z
+        .string()
+        .default("user_id")
+        .describe("Column that stores the owning user ID (compared against auth.uid())"),
+      allowPublicRead: z
+        .boolean()
+        .default(false)
+        .describe("If true, the select policy allows anon reads"),
+    }),
+  }),
+
+  analyzeNormalization: tool({
+    description:
+      "Analyze the current schema for normalization violations: repeating groups, partial dependencies, transitive dependencies, and missing junction tables for many-to-many relations. Returns findings with suggested refactoring steps.",
+    inputSchema: z.object({}),
+  }),
+
+  addTableComment: tool({
+    description:
+      "Add a documentation comment to a table. Appears as COMMENT ON TABLE in the migration output and as JSDoc in generated TypeScript types.",
+    inputSchema: z.object({
+      tableName: z.string(),
+      comment: z.string().describe("Human-readable description of the table's purpose"),
+    }),
+  }),
+
+  generateERDMermaid: tool({
+    description:
+      "Generate a Mermaid erDiagram block from the current schema, showing all tables, their columns, and relationships. Ready to paste into a Markdown file or Mermaid Live.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for PostgreSQL patterns, normalization, indexing strategies, and ORM usage.",

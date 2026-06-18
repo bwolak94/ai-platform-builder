@@ -206,6 +206,82 @@ export const apiTools = {
     }),
   }),
 
+  addWebhookEndpoint: tool({
+    description:
+      "Add a webhook subscription endpoint pair: POST /webhooks (subscribe) and DELETE /webhooks/{id} (unsubscribe), with HMAC-SHA256 signature header in the response schema.",
+    inputSchema: z.object({
+      resource: z.string().describe("Resource the webhook fires on, e.g. 'order', 'payment'"),
+      events: z
+        .array(z.string())
+        .describe("Event types to expose, e.g. ['created', 'updated', 'deleted']"),
+    }),
+  }),
+
+  generatePostmanCollection: tool({
+    description:
+      "Export the current OpenAPI spec as a Postman Collection v2.1 JSON, ready to import into Postman or Newman for automated testing.",
+    inputSchema: z.object({}),
+  }),
+
+  addPagination: tool({
+    description:
+      "Add pagination query parameters and response envelope to a list endpoint. Supports cursor-based or offset/limit pagination.",
+    inputSchema: z.object({
+      endpointId: z.string().describe("ID of the list endpoint to paginate"),
+      strategy: z
+        .enum(["cursor", "offset"])
+        .default("cursor")
+        .describe("Pagination strategy: cursor uses next_cursor token, offset uses page+limit"),
+      pageSize: z.number().int().positive().default(20).describe("Default page size"),
+    }),
+  }),
+
+  addSchemaEnum: tool({
+    description:
+      "Add a reusable enum schema component (string with allowed values) that endpoints can reference in parameters or response bodies.",
+    inputSchema: z.object({
+      name: z
+        .string()
+        .regex(/^[A-Za-z][A-Za-z0-9_]*$/)
+        .describe("PascalCase enum name, e.g. 'OrderStatus'"),
+      values: z.array(z.string()).min(1).describe("Allowed string values, e.g. ['pending','paid']"),
+      description: z.string().nullable().optional(),
+    }),
+  }),
+
+  generateSDK: tool({
+    description:
+      "Generate a typed TypeScript fetch client (SDK) from the current spec. Each endpoint becomes a typed async function with request/response types inferred from the schema.",
+    inputSchema: z.object({
+      clientName: z
+        .string()
+        .default("ApiClient")
+        .describe("Class name for the generated SDK, e.g. 'ApiClient'"),
+    }),
+  }),
+
+  duplicateEndpoint: tool({
+    description:
+      "Clone an existing endpoint with a new unique ID and optionally a new HTTP method or path. Useful for creating similar endpoints with minor variations.",
+    inputSchema: z.object({
+      sourceId: z.string().describe("ID of the endpoint to duplicate"),
+      newId: z.string().describe("New unique endpoint ID"),
+      newPath: z.string().optional().describe("Override path for the duplicate"),
+      newMethod: z.enum(HTTP_METHODS).optional().describe("Override HTTP method"),
+    }),
+  }),
+
+  setSecurityRequirement: tool({
+    description:
+      "Set or override the security requirement on specific endpoints, allowing individual endpoints to opt out of global security or require a specific scheme.",
+    inputSchema: z.object({
+      endpointIds: z
+        .array(z.string())
+        .describe("List of endpoint IDs to update. Empty = apply to all."),
+      requiresAuth: z.boolean().describe("True = require authentication; false = public endpoint"),
+    }),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search documentation for REST best practices, OpenAPI patterns, and HTTP status codes.",

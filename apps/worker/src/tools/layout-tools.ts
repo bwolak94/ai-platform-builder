@@ -195,6 +195,87 @@ export const layoutTools = {
     }),
   }),
 
+  cloneNode: tool({
+    description:
+      "Deep copy a node subtree with fresh auto-generated IDs and insert the clone immediately after the original. Use this instead of duplicateComponent when you need to clone into a different parent.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to clone"),
+      targetParentId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Parent to insert into. Null = same parent as original."),
+    }),
+  }),
+
+  extractComponent: tool({
+    description:
+      "Wrap an existing node subtree in a new named container div with a data-component attribute, making it a logical named component block. Useful for documenting reusable sections.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the root node to wrap"),
+      componentName: z
+        .string()
+        .describe("PascalCase component name, e.g. 'HeroSection', written into data-component"),
+    }),
+  }),
+
+  addBreakpointClasses: tool({
+    description:
+      "Add responsive variant Tailwind classes to a node for one or more breakpoints (sm, md, lg, xl, 2xl).",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to add responsive classes to"),
+      breakpoints: z
+        .array(
+          z.object({
+            prefix: z.enum(["sm", "md", "lg", "xl", "2xl"]).describe("Tailwind breakpoint prefix"),
+            classes: z.array(z.string()).describe("Classes to apply at this breakpoint"),
+          })
+        )
+        .describe("Breakpoint class definitions"),
+    }),
+  }),
+
+  setNodeVisibility: tool({
+    description:
+      "Show or hide a node by adding/removing the Tailwind `hidden` class. Useful for toggling sections without removing them.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node"),
+      visible: z.boolean().describe("True = show (remove `hidden`); false = hide (add `hidden`)"),
+    }),
+  }),
+
+  addGroupPeer: tool({
+    description:
+      "Add `group` or `peer` Tailwind utility to a parent node and corresponding `group-*` / `peer-*` classes to a child node, enabling CSS-only interactive patterns.",
+    inputSchema: z.object({
+      parentNodeId: z.string().describe("Node to receive `group` or `peer` class"),
+      utility: z.enum(["group", "peer"]).describe("Which Tailwind utility to apply to the parent"),
+      childNodeId: z
+        .string()
+        .describe("Node to receive dependent classes (e.g. group-hover:block)"),
+      childClasses: z
+        .array(z.string())
+        .describe(
+          "Dependent classes for the child, e.g. ['group-hover:block', 'group-focus:ring']"
+        ),
+    }),
+  }),
+
+  wrapNode: tool({
+    description:
+      "Insert a new wrapper container node around an existing node. The existing node becomes the only child of the new wrapper.",
+    inputSchema: z.object({
+      nodeId: z.string().describe("ID of the node to wrap"),
+      wrapper: NodeInputSchema.describe("The new wrapper node (must be a container tag)"),
+    }),
+  }),
+
+  generateCSSVariables: tool({
+    description:
+      "Generate a `:root {}` CSS custom properties snippet from the current layout's Tailwind color and typography classes, ready to paste into a global stylesheet or Tailwind config.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description: "Search docs for Tailwind patterns, shadcn components, and ARIA guidelines.",
     inputSchema: z.object({

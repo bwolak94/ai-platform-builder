@@ -258,6 +258,113 @@ export const e2eTools = {
     }),
   }),
 
+  addVisualSnapshot: tool({
+    description:
+      "Add a screenshot comparison step to a test case. Captures a full-page or element-scoped screenshot and compares it against a stored baseline using Playwright's toHaveScreenshot().",
+    inputSchema: z.object({
+      testCaseId: z.string(),
+      snapshotName: z.string().describe("Baseline snapshot filename, e.g. 'homepage.png'"),
+      selector: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("CSS selector to scope the screenshot. Null = full page."),
+      threshold: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.1)
+        .describe("Max allowed pixel difference ratio"),
+    }),
+  }),
+
+  generatePageObject: tool({
+    description:
+      "Generate a Page Object Model (POM) TypeScript class from the steps of the active test file. Groups selectors and actions by page, producing a reusable class with typed methods.",
+    inputSchema: z.object({
+      className: z.string().describe("PascalCase POM class name, e.g. 'LoginPage'"),
+      pageUrl: z.string().optional().describe("URL the page object navigates to, e.g. '/login'"),
+    }),
+  }),
+
+  addAuthSetup: tool({
+    description:
+      "Add a Playwright storageState-based authentication setup: creates a global setup script that logs in once and saves the session to a file, which all tests reuse to skip re-authentication.",
+    inputSchema: z.object({
+      loginUrl: z.string().describe("Login page URL, e.g. '/login'"),
+      usernameSelector: SelectorSchema.describe("Locator for the username/email input"),
+      passwordSelector: SelectorSchema.describe("Locator for the password input"),
+      submitSelector: SelectorSchema.describe("Locator for the submit button"),
+      storageStatePath: z
+        .string()
+        .default(".playwright/auth.json")
+        .describe("Path to save the authentication state file"),
+    }),
+  }),
+
+  addAccessibilityTest: tool({
+    description:
+      "Add a full-page axe-core accessibility scan step to a test case using @axe-core/playwright. Fails the test if any critical or serious violations are found.",
+    inputSchema: z.object({
+      testCaseId: z.string(),
+      context: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("CSS selector to scope the axe scan. Null = full page."),
+      disabledRules: z
+        .array(z.string())
+        .optional()
+        .describe("Axe rule IDs to disable, e.g. ['color-contrast']"),
+    }),
+  }),
+
+  addMobileTest: tool({
+    description:
+      "Duplicate an existing test case and configure it to run in a mobile viewport using Playwright's device emulation (iPhone 14 by default).",
+    inputSchema: z.object({
+      testCaseId: z.string().describe("ID of the test case to create a mobile variant of"),
+      newId: z.string().describe("New unique ID for the mobile test case"),
+      device: z
+        .string()
+        .default("iPhone 14")
+        .describe("Playwright device descriptor name from playwright.devices"),
+    }),
+  }),
+
+  generateFixture: tool({
+    description:
+      "Generate a Playwright fixtures file (fixtures.ts) that extends the base test object with shared page objects, authenticated page instances, and test data factories.",
+    inputSchema: z.object({
+      fixtures: z
+        .array(
+          z.object({
+            name: z.string().describe("Fixture name in camelCase, e.g. 'loggedInPage'"),
+            type: z
+              .enum(["page-object", "auth-page", "mock-data"])
+              .describe("Type of fixture to generate"),
+          })
+        )
+        .min(1)
+        .describe("List of fixtures to include in the file"),
+    }),
+  }),
+
+  generateReportConfig: tool({
+    description:
+      "Add Playwright HTML and JUnit report configuration to playwright.config.ts and return the commands to open the HTML report locally after a test run.",
+    inputSchema: z.object({
+      outputDir: z
+        .string()
+        .default("playwright-report")
+        .describe("Directory for the HTML report output"),
+      includeJUnit: z
+        .boolean()
+        .default(true)
+        .describe("Also add JUnit XML reporter for CI integration"),
+    }),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for Playwright API, locator strategies, assertion patterns, and best practices.",

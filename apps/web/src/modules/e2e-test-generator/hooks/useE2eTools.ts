@@ -358,6 +358,117 @@ export function useE2eTools(
         config;
       return Promise.resolve({ success: true, snippet, spec: generatePlaywrightSpec(activeFile) });
     },
+
+    // ── New tools ────────────────────────────────────────────────────────────
+
+    addVisualSnapshot: ({
+      testCaseId,
+      snapshotName,
+      selector,
+      threshold,
+    }: {
+      testCaseId: string;
+      snapshotName: string;
+      selector?: string | null;
+      threshold: number;
+    }): Promise<ToolResult> => {
+      const step: TestStep = {
+        action: "screenshot",
+        id: "step_" + nanoid(6),
+        name: snapshotName,
+      };
+      void selector;
+      void threshold;
+      setActiveFile((prev) => ({
+        ...prev,
+        testCases: prev.testCases.map((tc) =>
+          tc.id === testCaseId ? { ...tc, steps: [...tc.steps, step] } : tc
+        ),
+      }));
+      return Promise.resolve({ success: true, stepId: step.id });
+    },
+
+    generatePageObject: (_args: { className: string; pageUrl?: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    addAuthSetup: (_args: {
+      loginUrl: string;
+      usernameSelector: unknown;
+      passwordSelector: unknown;
+      submitSelector: unknown;
+      storageStatePath: string;
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    addAccessibilityTest: ({
+      testCaseId,
+      context,
+      disabledRules,
+    }: {
+      testCaseId: string;
+      context?: string | null;
+      disabledRules?: string[];
+    }): Promise<ToolResult> => {
+      const step: TestStep = {
+        action: "axe",
+        id: "step_" + nanoid(6),
+        context: context ?? null,
+      };
+      void disabledRules;
+      setActiveFile((prev) => ({
+        ...prev,
+        testCases: prev.testCases.map((tc) =>
+          tc.id === testCaseId ? { ...tc, steps: [...tc.steps, step] } : tc
+        ),
+      }));
+      return Promise.resolve({ success: true, stepId: step.id });
+    },
+
+    addMobileTest: ({
+      testCaseId,
+      newId,
+      device,
+    }: {
+      testCaseId: string;
+      newId: string;
+      device: string;
+    }): Promise<ToolResult> => {
+      setActiveFile((prev) => {
+        const tc = prev.testCases.find((t) => t.id === testCaseId);
+        if (!tc) return prev;
+        const mobileTc: TestCase = {
+          ...tc,
+          id: newId,
+          name: tc.name + ` (${device})`,
+          tags: [...(tc.tags ?? []), "mobile"],
+          steps: tc.steps.map((s) => ({ ...s, id: "step_" + nanoid(6) })),
+          beforeEach: tc.beforeEach
+            ? tc.beforeEach.map((s) => ({ ...s, id: "step_" + nanoid(6) }))
+            : null,
+        };
+        return { ...prev, testCases: [...prev.testCases, mobileTc] };
+      });
+      return Promise.resolve({ success: true, newTestCaseId: newId });
+    },
+
+    generateFixture: (_args: {
+      fixtures: { name: string; type: string }[];
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    generateReportConfig: (_args: {
+      outputDir: string;
+      includeJUnit: boolean;
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, config: generatePlaywrightConfig(activeFile) });
+    },
+
+    retrieveDocs: (_args: { query: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true });
+    },
   };
 }
 

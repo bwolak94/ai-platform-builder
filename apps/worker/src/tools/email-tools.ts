@@ -241,4 +241,80 @@ export const emailTools = {
         .describe("Sequence definition — minimum 2, maximum 10 emails"),
     }),
   }),
+  generateABVariant: tool({
+    description:
+      "Create an A/B test variant of the current email template by duplicating the structure and applying a specified change (different subject, hero copy, or CTA). Returns both variant configs.",
+    inputSchema: z.object({
+      variantName: z.string().describe("Label for the B variant, e.g. 'urgency-cta'"),
+      change: z
+        .enum(["subject", "hero-copy", "cta-label", "cta-color"])
+        .describe("Which element to vary between A and B"),
+      bValue: z.string().describe("The alternate value for the B variant"),
+    }),
+  }),
+
+  addDynamicBlock: tool({
+    description:
+      "Add a conditionally shown section to the template: the section renders only when a personalization token matches the specified value (e.g. show upgrade CTA only for free-tier users).",
+    inputSchema: z.object({
+      conditionToken: z.string().describe("Token name to check, e.g. 'plan'"),
+      conditionValue: z.string().describe("Value that triggers the block, e.g. 'free'"),
+      section: z
+        .object({
+          type: z.enum(["hero", "text", "cta"]).describe("Section type to conditionally render"),
+          heading: z.string().optional(),
+          content: z.string().optional(),
+          ctaLabel: z.string().optional(),
+          ctaUrl: z.string().optional(),
+        })
+        .describe("Section content for the conditional block"),
+    }),
+  }),
+
+  generatePlainText: tool({
+    description:
+      "Generate a plain-text fallback version of the email template by stripping HTML and preserving the logical content hierarchy. Essential for spam filter compliance.",
+    inputSchema: z.object({}),
+  }),
+
+  validateCSSCompatibility: tool({
+    description:
+      "Check all CSS properties used in the template against the Can I Email compatibility table. Returns a list of unsupported properties per email client (Outlook, Gmail, Apple Mail) with fallback suggestions.",
+    inputSchema: z.object({}),
+  }),
+
+  addSocialProof: tool({
+    description:
+      "Insert a social proof block (star rating, testimonial quote, or logo strip) into the template at the specified position. Useful for promotional and onboarding emails.",
+    inputSchema: z.object({
+      variant: z
+        .enum(["stars-rating", "testimonial-quote", "logo-strip"])
+        .describe("Type of social proof element to add"),
+      afterSectionId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this section ID. Null = append."),
+      quote: z.string().optional().describe("Testimonial quote text (for testimonial-quote)"),
+      author: z.string().optional().describe("Attribution name (for testimonial-quote)"),
+      rating: z.number().min(1).max(5).optional().describe("Star rating value (for stars-rating)"),
+    }),
+  }),
+
+  previewDarkMode: tool({
+    description:
+      "Switch the preview pane to simulate dark-mode email rendering (adds CSS prefers-color-scheme:dark overrides in the preview iframe).",
+    inputSchema: z.object({
+      enabled: z.boolean().describe("True = enable dark mode preview; false = light mode"),
+    }),
+  }),
+
+  generateUnsubscribePage: tool({
+    description:
+      "Generate a minimal unsubscribe confirmation page HTML that can be hosted at the unsubscribeUrl. Includes a one-click confirm button and a re-subscribe link.",
+    inputSchema: z.object({
+      brandName: z.string().describe("Brand name shown on the page"),
+      accentColor: z.string().default("#4F46E5").describe("Hex color for the confirm button"),
+    }),
+  }),
 };

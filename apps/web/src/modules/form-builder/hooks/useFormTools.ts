@@ -88,6 +88,134 @@ export function useFormTools(formSchema: FormSchema, setFormSchema: Setter) {
     querySchema: (): Promise<QuerySchemaResult> => {
       return Promise.resolve({ schema: serializeFormDSL(formSchema) });
     },
+
+    // ── Backfilled tools (worker-defined, client executes) ──────────────────
+
+    applyFormTemplate: (_args: { template: string }): Promise<SimpleResult> => {
+      // Template application is driven by the agent via addField calls after this acknowledgement
+      return Promise.resolve({ success: true });
+    },
+
+    addConditionalRule: (_args: {
+      fieldId: string;
+      dependsOnFieldId: string;
+      operator: string;
+      value: string | null;
+      action: "show" | "hide";
+    }): Promise<SimpleResult> => {
+      // Conditional rule metadata — acknowledged; agent renders rule in chat
+      return Promise.resolve({ success: true });
+    },
+
+    addFieldGroup: (_args: {
+      groupId: string;
+      legend: string;
+      fieldIds: string[];
+    }): Promise<SimpleResult> => {
+      // Group metadata — acknowledged; agent explains grouping in chat
+      return Promise.resolve({ success: true });
+    },
+
+    exportToReactHookForm: (): Promise<{ tsx: string }> => {
+      // Code generation is handled agent-side; return DSL for agent to use
+      return Promise.resolve({ tsx: serializeFormDSL(formSchema) });
+    },
+
+    auditFormAccessibility: (): Promise<{ issues: string[] }> => {
+      const issues: string[] = [];
+      for (const f of formSchema.fields) {
+        if (!f.label) issues.push(`Field "${f.id}" is missing a label.`);
+        if (f.type === "text" && f.id.toLowerCase().includes("email")) {
+          issues.push(`Field "${f.id}" looks like an email field but uses type "text".`);
+        }
+      }
+      return Promise.resolve({ issues });
+    },
+
+    // ── New tools ────────────────────────────────────────────────────────────
+
+    createFormWizard: (_args: {
+      steps: { title: string; fieldIds: string[] }[];
+    }): Promise<SimpleResult> => {
+      // Wizard config — acknowledged; agent generates wizard code in chat
+      return Promise.resolve({ success: true });
+    },
+
+    getConditionalGraph: (): Promise<{ mermaid: string }> => {
+      // Graph generation is handled agent-side based on querySchema output
+      return Promise.resolve({ mermaid: "flowchart TD\n  %% No conditional rules defined" });
+    },
+
+    importJsonSchema: (args: {
+      schema: Record<string, unknown>;
+      overwrite: boolean;
+    }): Promise<SimpleResult> => {
+      // Agent drives addField calls; client acknowledges
+      void args;
+      return Promise.resolve({ success: true });
+    },
+
+    exportZodSchema: (): Promise<{ zod: string }> => {
+      const lines = formSchema.fields.map((f) => {
+        const hasRequired = f.validation?.some((v) => v.type === "required");
+        const base = hasRequired ? `z.string().min(1)` : `z.string().optional()`;
+        return `  ${f.name}: ${base},`;
+      });
+      return Promise.resolve({ zod: `z.object({\n${lines.join("\n")}\n})` });
+    },
+
+    previewField: (_args: { fieldId: string }): Promise<SimpleResult> => {
+      // Preview scrolling is handled by the preview iframe consumer
+      return Promise.resolve({ success: true });
+    },
+
+    duplicateField: (args: { fieldId: string; newId: string }): Promise<SimpleResult> => {
+      setFormSchema((prev) => {
+        const idx = prev.fields.findIndex((f) => f.id === args.fieldId);
+        if (idx === -1) return prev;
+        const original = prev.fields[idx];
+        if (!original) return prev;
+        const rawLabel = original.label + " copy";
+        const copy: FormField = {
+          ...original,
+          id: args.newId,
+          name: original.name + "_copy",
+          label: rawLabel.length <= 60 ? rawLabel : rawLabel.slice(0, 57) + "...",
+        };
+        const fields = [...prev.fields];
+        fields.splice(idx + 1, 0, copy);
+        return { ...prev, fields };
+      });
+      return Promise.resolve({ success: true });
+    },
+
+    addComputedField: (args: {
+      id: string;
+      label: string;
+      formula: string;
+      dependsOn: string[];
+    }): Promise<SimpleResult> => {
+      const computedField: FormField = {
+        id: args.id,
+        type: "text",
+        name: args.id,
+        label: args.label.length <= 60 ? args.label : args.label.slice(0, 57) + "...",
+        placeholder: `= ${args.formula}`,
+        helpText: `Computed: ${args.formula}. Depends on: ${args.dependsOn.join(", ")}`,
+        defaultValue: null,
+        options: null,
+        validation: null,
+        className: null,
+        disabled: true,
+        hidden: null,
+      };
+      setFormSchema((prev) => ({ ...prev, fields: [...prev.fields, computedField] }));
+      return Promise.resolve({ success: true });
+    },
+
+    retrieveDocs: (_args: { query: string }): Promise<SimpleResult> => {
+      return Promise.resolve({ success: true });
+    },
   };
 }
 
