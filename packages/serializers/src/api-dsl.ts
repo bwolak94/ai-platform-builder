@@ -735,9 +735,9 @@ function mockValueForType(typeStr: string): unknown {
 export function generateMockForEndpoint(
   spec: OpenApiSpec,
   endpointId: string
-): Record<string, unknown> {
+): Record<string, unknown> | null {
   const ep = spec.endpoints.find((e) => e.id === endpointId);
-  if (!ep) return { error: "Endpoint not found" };
+  if (!ep) return null;
 
   const successResponse = ep.responses.find((r) => r.status >= 200 && r.status < 300);
   const schemaRef = successResponse?.schema;
