@@ -96,6 +96,7 @@ export function AppShell() {
               isLoading={isLoading}
               status={status}
               activeToolCall={activeToolCall}
+              mode={mode}
               onInputChange={setInput}
               onSubmit={handleSubmit}
               onClear={clearMessages}

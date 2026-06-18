@@ -25,15 +25,18 @@ const ArgTypeSchema = z.object({
 
 export const storyTools = {
   queryStory: tool({
-    description: "Get the current story file state including component info and all variants.",
+    description:
+      "Get the current active story file state including component info and all variants.",
     inputSchema: z.object({}),
   }),
 
   setComponent: tool({
     description: "Set the component being documented (name and import path).",
     inputSchema: z.object({
-      name: z.string().describe("PascalCase component name"),
-      importPath: z.string().describe("Relative import path, e.g. './Button'"),
+      componentName: z.string().describe("PascalCase component name, e.g. 'Button'"),
+      componentPath: z
+        .string()
+        .describe("Relative import path, e.g. './Button' or 'src/components/Button'"),
       title: z.string().optional().describe("Storybook sidebar title, e.g. 'Components/Button'"),
     }),
   }),
@@ -43,18 +46,25 @@ export const storyTools = {
     inputSchema: z.object({
       name: z.string().describe("PascalCase variant name, e.g. 'Primary', 'Disabled'"),
       args: z.record(z.string(), z.unknown()).describe("Component props for this variant"),
+      viewport: z
+        .enum(["mobile1", "mobile2", "tablet", "desktop"])
+        .optional()
+        .describe("Viewport preset for this variant"),
+      docs: z.string().optional().describe("Short description shown as a comment in the story"),
       parameters: z
         .record(z.string(), z.unknown())
         .optional()
-        .describe("Storybook parameters override"),
+        .describe("Storybook parameters override (e.g. backgrounds, layout)"),
     }),
   }),
 
   updateVariant: tool({
-    description: "Update args or parameters for an existing variant.",
+    description: "Update args, docs, viewport, or parameters for an existing variant.",
     inputSchema: z.object({
-      name: z.string(),
+      name: z.string().describe("Exact variant name to update"),
       args: z.record(z.string(), z.unknown()).optional(),
+      docs: z.string().optional(),
+      viewport: z.enum(["mobile1", "mobile2", "tablet", "desktop"]).optional(),
       parameters: z.record(z.string(), z.unknown()).optional(),
     }),
   }),
@@ -62,7 +72,7 @@ export const storyTools = {
   removeVariant: tool({
     description: "Remove a story variant by name.",
     inputSchema: z.object({
-      name: z.string(),
+      name: z.string().describe("Exact variant name to remove"),
     }),
   }),
 
@@ -87,8 +97,50 @@ export const storyTools = {
     }),
   }),
 
+  addDecorator: tool({
+    description: "Add a decorator to the story file Meta (e.g. a provider wrapper).",
+    inputSchema: z.object({
+      decorator: z
+        .string()
+        .describe(
+          "JSX arrow function string, e.g. '(Story) => <ThemeProvider><Story /></ThemeProvider>'"
+        ),
+    }),
+  }),
+
+  addTag: tool({
+    description: "Add a tag to the story file (e.g. 'autodocs', 'test').",
+    inputSchema: z.object({
+      tag: z.string().describe("Tag string, e.g. 'autodocs'"),
+    }),
+  }),
+
+  createStoryFile: tool({
+    description: "Create a new story file for a different component (enables multi-file workflow).",
+    inputSchema: z.object({
+      componentName: z.string().describe("PascalCase component name"),
+      componentPath: z.string().describe("Relative import path"),
+      title: z.string().optional().describe("Storybook sidebar title"),
+    }),
+  }),
+
+  switchStoryFile: tool({
+    description: "Switch the active story file by component name.",
+    inputSchema: z.object({
+      componentName: z.string().describe("PascalCase component name of the file to switch to"),
+    }),
+  }),
+
+  removeStoryFile: tool({
+    description: "Remove a story file by component name (cannot remove the last file).",
+    inputSchema: z.object({
+      componentName: z.string().describe("PascalCase component name of the file to remove"),
+    }),
+  }),
+
   retrieveDocs: tool({
-    description: "Search docs for Storybook patterns, CSF3 API, and controls configuration.",
+    description:
+      "Search docs for Storybook patterns, CSF3 API, controls configuration, and decorators.",
     inputSchema: z.object({
       query: z.string(),
     }),
