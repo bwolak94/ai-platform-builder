@@ -234,6 +234,166 @@ export function useStoryTools(
       return Promise.resolve({ success: true });
     },
 
+    // ── Backfilled tools ─────────────────────────────────────────────────────
+
+    addPlayFunction: (_args: {
+      variantName: string;
+      steps: { description: string; code: string }[];
+    }): Promise<ToolResult> => {
+      // Play function — acknowledged; agent outputs play function code in chat
+      return Promise.resolve({ success: true });
+    },
+
+    addMSWDecorator: (args: {
+      variantName?: string | null;
+      handlers: {
+        method: string;
+        url: string;
+        status: number;
+        response: Record<string, unknown>;
+      }[];
+    }): Promise<ToolResult> => {
+      const handlerSummary = args.handlers.map((h) => `${h.method} ${h.url}`).join(", ");
+      const decoratorStr = `(Story) => { /* MSW: ${handlerSummary} */ return Story(); }`;
+      if (!args.variantName) {
+        setActiveFile((prev) => ({
+          ...prev,
+          decorators: [...(prev.decorators ?? []), decoratorStr],
+        }));
+      } else {
+        setActiveFile((prev) => ({
+          ...prev,
+          variants: prev.variants.map((v) =>
+            v.name === args.variantName
+              ? { ...v, parameters: { ...(v.parameters ?? {}), msw: args.handlers } }
+              : v
+          ),
+        }));
+      }
+      return Promise.resolve({ success: true });
+    },
+
+    inferStoriesFromInterface: (_args: { interfaceSource: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true });
+    },
+
+    generateDesignTokenStory: (_args: { title: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true });
+    },
+
+    // ── New tools ────────────────────────────────────────────────────────────
+
+    generateA11yTests: (_args: {
+      variantName: string;
+      context?: string | null;
+    }): Promise<ToolResult> => {
+      // Accessibility test — acknowledged; agent outputs axe play function in chat
+      return Promise.resolve({ success: true });
+    },
+
+    addResponsiveStory: (args: { baseVariantName: string }): Promise<ToolResult> => {
+      const viewports: StoryVariant["viewport"][] = ["mobile1", "tablet", "desktop"];
+      const names: Record<NonNullable<StoryVariant["viewport"]>, string> = {
+        mobile1: "Mobile",
+        mobile2: "MobileSmall",
+        tablet: "Tablet",
+        desktop: "Desktop",
+      };
+      setActiveFile((prev) => {
+        const base = prev.variants.find((v) => v.name === args.baseVariantName);
+        if (!base) return prev;
+        const newVariants = viewports.map((vp) => ({
+          ...base,
+          id: "var_" + nanoid(6),
+          name: `${args.baseVariantName}${vp ? names[vp] : ""}`,
+          viewport: vp,
+        }));
+        return { ...prev, variants: [...prev.variants, ...newVariants] };
+      });
+      return Promise.resolve({ success: true });
+    },
+
+    generateSnapshotTest: (): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
+    addChromatiConfig: (_args: {
+      projectToken?: string;
+      viewports: number[];
+      diffThreshold: number;
+    }): Promise<ToolResult> => {
+      // Chromatic config — acknowledged; agent outputs config snippet in chat
+      return Promise.resolve({ success: true });
+    },
+
+    inferStoriesFromProps: (_args: {
+      props: { name: string; type: string; required?: boolean }[];
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true });
+    },
+
+    generateInteractionTest: (_args: {
+      variantName: string;
+      interactions: string[];
+    }): Promise<ToolResult> => {
+      // Interaction test — acknowledged; agent outputs play function code in chat
+      return Promise.resolve({ success: true });
+    },
+
+    exportToMDX: (): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
+    generateDocsPage: (_args: {
+      description?: string;
+      includeUsageExamples: boolean;
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
+    addThemeVariants: (args: {
+      baseVariantName: string;
+      themes: ("light" | "dark" | "high-contrast")[];
+    }): Promise<ToolResult> => {
+      setActiveFile((prev) => {
+        const base = prev.variants.find((v) => v.name === args.baseVariantName);
+        if (!base) return prev;
+        const themeVariants = args.themes.map((theme) => ({
+          ...base,
+          id: "var_" + nanoid(6),
+          name: `${args.baseVariantName}${theme.charAt(0).toUpperCase() + theme.slice(1).replace("-", "")}`,
+          parameters: { ...(base.parameters ?? {}), backgrounds: { default: theme } },
+        }));
+        return { ...prev, variants: [...prev.variants, ...themeVariants] };
+      });
+      return Promise.resolve({ success: true });
+    },
+
+    generatePropMatrix: (_args: {
+      props: { name: string; values: unknown[] }[];
+    }): Promise<ToolResult> => {
+      // Prop matrix generation is complex; agent outputs variant list from DSL context
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
+    addI18nDecorator: (args: {
+      library: "react-intl" | "i18next";
+      locales: string[];
+    }): Promise<ToolResult> => {
+      const localeList = args.locales.join(", ");
+      const decoratorStr = `(Story, context) => { /* ${args.library} i18n decorator — locales: ${localeList} */ return Story(context); }`;
+      setActiveFile((prev) => ({
+        ...prev,
+        decorators: [...(prev.decorators ?? []), decoratorStr],
+      }));
+      return Promise.resolve({ success: true });
+    },
+
+    inferFromDesignToken: (_args: { tokens: Record<string, unknown> }): Promise<ToolResult> => {
+      // Design token inference — agent generates argTypes and updates default args in chat
+      return Promise.resolve({ success: true, dsl: serializeStoriesDSL(activeFile) });
+    },
+
     // ── Legacy client-side reset ──────────────────────────────────────────────
 
     reset: (): Promise<ToolResult> => {

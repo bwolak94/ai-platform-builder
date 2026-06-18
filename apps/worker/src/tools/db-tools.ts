@@ -160,11 +160,164 @@ export const dbTools = {
     inputSchema: z.object({}),
   }),
 
+  generateSeedData: tool({
+    description:
+      "Generate a seed data file (seed.sql or seed.ts for Prisma/Drizzle) with realistic deterministic fixture data for all tables.",
+    inputSchema: z.object({
+      format: z
+        .enum(["sql", "prisma", "drizzle"])
+        .default("sql")
+        .describe("Output format for seed data"),
+      rowsPerTable: z
+        .number()
+        .int()
+        .min(1)
+        .max(50)
+        .default(5)
+        .describe("Number of seed rows to generate per table"),
+    }),
+  }),
+
+  analyzeQueryPerformance: tool({
+    description:
+      "Analyze the current schema for performance risks: missing indexes on FK columns, unindexed high-cardinality columns, N+1 relation patterns, and tables likely to need pagination. Returns a list of findings with suggested fixes.",
+    inputSchema: z.object({}),
+  }),
+
+  generateGraphQLSchema: tool({
+    description:
+      "Generate a GraphQL SDL schema from the current relational schema, including input types, query/mutation outlines, and resolver stubs.",
+    inputSchema: z.object({}),
+  }),
+
+  generateSupabaseFunction: tool({
+    description:
+      "Generate a typed Supabase Edge Function scaffold with CRUD handlers for a specific table, including RLS-aware queries.",
+    inputSchema: z.object({
+      tableName: z.string().describe("The table to generate the Edge Function for"),
+      operations: z
+        .array(z.enum(["list", "get", "create", "update", "delete"]))
+        .describe("Which CRUD operations to include"),
+    }),
+  }),
+
+  addCheckConstraint: tool({
+    description:
+      "Add a CHECK constraint to a column in a table (e.g. price > 0, status IN ('active','inactive')).",
+    inputSchema: z.object({
+      tableName: z.string(),
+      columnName: z.string(),
+      expression: z
+        .string()
+        .describe(
+          "SQL CHECK expression, e.g. 'price > 0' or \"status IN ('active','inactive')\"\n"
+        ),
+      constraintName: z.string().optional().describe("Optional explicit constraint name"),
+    }),
+  }),
+
+  addEnum: tool({
+    description:
+      "Add a custom PostgreSQL enum type that columns can reference. Generates CREATE TYPE … AS ENUM in the migration output.",
+    inputSchema: z.object({
+      name: z.string().describe("snake_case enum type name, e.g. 'user_role'"),
+      values: z
+        .array(z.string())
+        .min(1)
+        .describe("Allowed values, e.g. ['admin','editor','viewer']"),
+    }),
+  }),
+
+  generatePrismaSchema: tool({
+    description:
+      "Generate a Prisma schema file (schema.prisma) from the current database schema, including model definitions, field types, relations, and @@index directives.",
+    inputSchema: z.object({}),
+  }),
+
+  generateRLSPolicies: tool({
+    description:
+      "Generate Supabase Row Level Security (RLS) policy SQL for a table: one select policy, one insert policy, one update policy, and one delete policy using auth.uid().",
+    inputSchema: z.object({
+      tableName: z.string().describe("Table to generate RLS policies for"),
+      ownerColumn: z
+        .string()
+        .default("user_id")
+        .describe("Column that stores the owning user ID (compared against auth.uid())"),
+      allowPublicRead: z
+        .boolean()
+        .default(false)
+        .describe("If true, the select policy allows anon reads"),
+    }),
+  }),
+
+  analyzeNormalization: tool({
+    description:
+      "Analyze the current schema for normalization violations: repeating groups, partial dependencies, transitive dependencies, and missing junction tables for many-to-many relations. Returns findings with suggested refactoring steps.",
+    inputSchema: z.object({}),
+  }),
+
+  addTableComment: tool({
+    description:
+      "Add a documentation comment to a table. Appears as COMMENT ON TABLE in the migration output and as JSDoc in generated TypeScript types.",
+    inputSchema: z.object({
+      tableName: z.string(),
+      comment: z.string().describe("Human-readable description of the table's purpose"),
+    }),
+  }),
+
+  generateERDMermaid: tool({
+    description:
+      "Generate a Mermaid erDiagram block from the current schema, showing all tables, their columns, and relationships. Ready to paste into a Markdown file or Mermaid Live.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for PostgreSQL patterns, normalization, indexing strategies, and ORM usage.",
     inputSchema: z.object({
       query: z.string(),
     }),
+  }),
+
+  addSoftDelete: tool({
+    description:
+      "Add soft delete support to one or more tables: adds a deleted_at TIMESTAMPTZ nullable column, a corresponding index, and generates a filtered view (v_{tableName}_active) that excludes soft-deleted rows.",
+    inputSchema: z.object({
+      tableNames: z.array(z.string()).min(1).describe("Tables to add soft delete to"),
+      columnName: z
+        .string()
+        .default("deleted_at")
+        .describe("Column name for the soft delete timestamp"),
+    }),
+  }),
+
+  generateAuditLog: tool({
+    description:
+      "Generate an audit_log table and a PL/pgSQL trigger function that records INSERT/UPDATE/DELETE events for the specified tables, storing old and new row data as JSONB.",
+    inputSchema: z.object({
+      tableNames: z.array(z.string()).min(1).describe("Tables to enable audit logging for"),
+      includeUserId: z
+        .boolean()
+        .default(true)
+        .describe("If true, the trigger captures auth.uid() as changed_by"),
+    }),
+  }),
+
+  suggestIndexes: tool({
+    description:
+      "Analyze the current schema and suggest indexes based on foreign key columns, columns used in common filter patterns (status, type, created_at), and high-cardinality unique columns. Returns suggested CREATE INDEX statements.",
+    inputSchema: z.object({}),
+  }),
+
+  generateTypeormEntities: tool({
+    description:
+      "Generate TypeORM entity classes for all tables, including column decorators, relation decorators (@OneToMany, @ManyToOne, @ManyToMany), and an index decorator for each defined index.",
+    inputSchema: z.object({}),
+  }),
+
+  detectDenormalization: tool({
+    description:
+      "Scan the current schema for denormalization patterns: columns storing comma-separated values, repeated column groups across tables, and missing junction tables for many-to-many patterns stored as arrays. Returns findings with refactoring suggestions.",
+    inputSchema: z.object({}),
   }),
 };

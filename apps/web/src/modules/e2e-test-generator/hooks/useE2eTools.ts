@@ -1,4 +1,8 @@
-import { serializeE2eDSL } from "@ai-builder/serializers";
+import {
+  serializeE2eDSL,
+  generatePlaywrightSpec,
+  generatePlaywrightConfig,
+} from "@ai-builder/serializers";
 import { TestCaseSchema, TestStepSchema } from "@ai-builder/schemas";
 import type { TestCase, TestStep, TestManagerState, TestFile } from "@ai-builder/schemas";
 import { nanoid } from "nanoid";
@@ -244,6 +248,273 @@ export function useE2eTools(
         return { files: remaining, activeFileId: newActiveId };
       });
       return Promise.resolve({ success: true });
+    },
+
+    addNetworkIntercept: ({
+      testCaseId,
+      method,
+      urlPattern,
+      status,
+      responseBody,
+      insertBeforeStepId,
+    }: {
+      testCaseId: string;
+      method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+      urlPattern: string;
+      status: number;
+      responseBody: Record<string, unknown> | null;
+      insertBeforeStepId?: string | null;
+    }): Promise<ToolResult> => {
+      const step: TestStep = {
+        action: "intercept",
+        id: "step_" + nanoid(6),
+        method,
+        urlPattern,
+        status,
+        body: responseBody,
+      };
+      setActiveFile((prev) => ({
+        ...prev,
+        testCases: prev.testCases.map((tc) => {
+          if (tc.id !== testCaseId) return tc;
+          if (insertBeforeStepId) {
+            const idx = tc.steps.findIndex((s) => s.id === insertBeforeStepId);
+            if (idx !== -1) {
+              const steps = [...tc.steps];
+              steps.splice(idx, 0, step);
+              return { ...tc, steps };
+            }
+          }
+          return { ...tc, steps: [step, ...tc.steps] };
+        }),
+      }));
+      return Promise.resolve({ success: true, stepId: step.id });
+    },
+
+    generateCIConfig: ({
+      nodeVersion = "20",
+      tags,
+      browsers = ["chromium"],
+    }: {
+      nodeVersion?: string;
+      tags?: string[];
+      browsers?: ("chromium" | "firefox" | "webkit")[];
+    }): Promise<ToolResult> => {
+      const browserList = browsers.join(", ");
+      const tagJobs = (tags ?? [])
+        .map(
+          (tag) =>
+            `  test-${tag}:\n` +
+            `    runs-on: ubuntu-latest\n` +
+            `    steps:\n` +
+            `      - uses: actions/checkout@v4\n` +
+            `      - uses: actions/setup-node@v4\n` +
+            `        with:\n` +
+            `          node-version: "${nodeVersion}"\n` +
+            `      - run: npm ci\n` +
+            `      - run: npx playwright install --with-deps ${browsers[0] ?? "chromium"}\n` +
+            `      - run: npx playwright test --grep "@${tag}" --project=${browsers[0] ?? "chromium"}`
+        )
+        .join("\n\n");
+
+      const yaml =
+        `name: Playwright Tests\n\n` +
+        `on:\n` +
+        `  push:\n` +
+        `    branches: [main]\n` +
+        `  pull_request:\n\n` +
+        `jobs:\n` +
+        `  test-full:\n` +
+        `    runs-on: ubuntu-latest\n` +
+        `    steps:\n` +
+        `      - uses: actions/checkout@v4\n` +
+        `      - uses: actions/setup-node@v4\n` +
+        `        with:\n` +
+        `          node-version: "${nodeVersion}"\n` +
+        `      - run: npm ci\n` +
+        `      - run: npx playwright install --with-deps\n` +
+        `      - run: npx playwright test\n` +
+        `        env:\n` +
+        `          BROWSERS: "${browserList}"\n` +
+        (tagJobs ? "\n" + tagJobs : "");
+
+      return Promise.resolve({ success: true, yaml });
+    },
+
+    generateTraceConfig: ({
+      traceMode = "on-first-retry",
+    }: {
+      traceMode?: "on" | "on-first-retry" | "on-all-retries" | "retain-on-failure";
+    }): Promise<ToolResult> => {
+      const config = generatePlaywrightConfig(activeFile);
+      const snippet =
+        `// Add to playwright.config.ts use block:\n` +
+        `use: {\n` +
+        `  trace: "${traceMode}",\n` +
+        `}\n\n` +
+        `// To view traces locally:\n` +
+        `// npx playwright show-trace trace.zip\n\n` +
+        `// Full config:\n` +
+        config;
+      return Promise.resolve({ success: true, snippet, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    // ── New tools ────────────────────────────────────────────────────────────
+
+    addVisualSnapshot: ({
+      testCaseId,
+      snapshotName,
+      selector,
+      threshold,
+    }: {
+      testCaseId: string;
+      snapshotName: string;
+      selector?: string | null;
+      threshold: number;
+    }): Promise<ToolResult> => {
+      const step: TestStep = {
+        action: "screenshot",
+        id: "step_" + nanoid(6),
+        name: snapshotName,
+      };
+      void selector;
+      void threshold;
+      setActiveFile((prev) => ({
+        ...prev,
+        testCases: prev.testCases.map((tc) =>
+          tc.id === testCaseId ? { ...tc, steps: [...tc.steps, step] } : tc
+        ),
+      }));
+      return Promise.resolve({ success: true, stepId: step.id });
+    },
+
+    generatePageObject: (_args: { className: string; pageUrl?: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    addAuthSetup: (_args: {
+      loginUrl: string;
+      usernameSelector: unknown;
+      passwordSelector: unknown;
+      submitSelector: unknown;
+      storageStatePath: string;
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    addAccessibilityTest: ({
+      testCaseId,
+      context,
+      disabledRules,
+    }: {
+      testCaseId: string;
+      context?: string | null;
+      disabledRules?: string[];
+    }): Promise<ToolResult> => {
+      const step: TestStep = {
+        action: "axe",
+        id: "step_" + nanoid(6),
+        context: context ?? null,
+      };
+      void disabledRules;
+      setActiveFile((prev) => ({
+        ...prev,
+        testCases: prev.testCases.map((tc) =>
+          tc.id === testCaseId ? { ...tc, steps: [...tc.steps, step] } : tc
+        ),
+      }));
+      return Promise.resolve({ success: true, stepId: step.id });
+    },
+
+    addMobileTest: ({
+      testCaseId,
+      newId,
+      device,
+    }: {
+      testCaseId: string;
+      newId: string;
+      device: string;
+    }): Promise<ToolResult> => {
+      setActiveFile((prev) => {
+        const tc = prev.testCases.find((t) => t.id === testCaseId);
+        if (!tc) return prev;
+        const mobileTc: TestCase = {
+          ...tc,
+          id: newId,
+          name: tc.name + ` (${device})`,
+          tags: [...(tc.tags ?? []), "mobile"],
+          steps: tc.steps.map((s) => ({ ...s, id: "step_" + nanoid(6) })),
+          beforeEach: tc.beforeEach
+            ? tc.beforeEach.map((s) => ({ ...s, id: "step_" + nanoid(6) }))
+            : null,
+        };
+        return { ...prev, testCases: [...prev.testCases, mobileTc] };
+      });
+      return Promise.resolve({ success: true, newTestCaseId: newId });
+    },
+
+    generateFixture: (_args: {
+      fixtures: { name: string; type: string }[];
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    generateReportConfig: (_args: {
+      outputDir: string;
+      includeJUnit: boolean;
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, config: generatePlaywrightConfig(activeFile) });
+    },
+
+    retrieveDocs: (_args: { query: string }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true });
+    },
+
+    generateApiContractTest: (_args: {
+      baseUrl: string;
+      endpoints: { method: string; path: string; expectedStatus: number }[];
+    }): Promise<ToolResult> => {
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    addRetryStrategy: (_args: {
+      testCaseId?: string | null;
+      maxRetries: number;
+      backoffMs?: number;
+    }): Promise<ToolResult> => {
+      // Retry config — acknowledged; agent outputs playwright.config.ts snippet in chat
+      return Promise.resolve({ success: true });
+    },
+
+    generatePerformanceBudget: (args: {
+      url: string;
+      budgets: { lcp?: number; cls?: number; fid?: number; ttfb?: number };
+    }): Promise<ToolResult> => {
+      const tc: TestCase = {
+        id: "tc_perf_" + nanoid(6),
+        name: `Performance budget: ${args.url}`,
+        tags: ["performance"],
+        beforeEach: null,
+        steps: [
+          { action: "navigate", id: "step_" + nanoid(6), path: args.url },
+          { action: "screenshot", id: "step_" + nanoid(6), name: "performance-baseline" },
+        ],
+      };
+      setActiveFile((prev) => ({ ...prev, testCases: [...prev.testCases, tc] }));
+      return Promise.resolve({ success: true, testCaseId: tc.id });
+    },
+
+    addMultiUserScenario: (_args: {
+      name: string;
+      users: { role: string; storageStatePath?: string }[];
+    }): Promise<ToolResult> => {
+      // Multi-user scenario — acknowledged; agent outputs parallel context test code in chat
+      return Promise.resolve({ success: true, spec: generatePlaywrightSpec(activeFile) });
+    },
+
+    convertCypressToPlaywright: (_args: { cypressSource: string }): Promise<ToolResult> => {
+      // Conversion handled agent-side; return current file DSL for context
+      return Promise.resolve({ success: true, dsl: serializeE2eDSL(activeFile) });
     },
   };
 }

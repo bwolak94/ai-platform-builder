@@ -138,11 +138,237 @@ export const storyTools = {
     }),
   }),
 
+  addPlayFunction: tool({
+    description:
+      "Add a play function to a story variant to define interaction tests using @storybook/test userEvent and expect. The play function runs after the story renders.",
+    inputSchema: z.object({
+      variantName: z.string().describe("Exact PascalCase variant name to add the play function to"),
+      steps: z
+        .array(
+          z.object({
+            description: z
+              .string()
+              .describe("Human description of the step, e.g. 'Click submit button'"),
+            code: z
+              .string()
+              .describe(
+                "Play function step code string using userEvent/expect, e.g. \"await userEvent.click(canvas.getByRole('button'))\""
+              ),
+          })
+        )
+        .describe("Ordered list of play function steps"),
+    }),
+  }),
+
+  addMSWDecorator: tool({
+    description:
+      "Add a Mock Service Worker (msw) decorator to the story file or a specific variant. Provides mock API responses for network calls made inside the component.",
+    inputSchema: z.object({
+      variantName: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Variant to scope the decorator to. Null = add to Meta (all variants)."),
+      handlers: z
+        .array(
+          z.object({
+            method: z.enum(["get", "post", "put", "patch", "delete"]),
+            url: z.string().describe("URL pattern to mock, e.g. '/api/users'"),
+            status: z.number().int().default(200),
+            response: z.record(z.string(), z.unknown()).describe("JSON response body"),
+          })
+        )
+        .describe("MSW request handlers"),
+    }),
+  }),
+
+  inferStoriesFromInterface: tool({
+    description:
+      "Given a TypeScript interface definition, infer argTypes and generate story variants for each prop combination. Used when the user pastes a component interface.",
+    inputSchema: z.object({
+      interfaceSource: z.string().describe("TypeScript interface or type source code to parse"),
+    }),
+  }),
+
+  generateDesignTokenStory: tool({
+    description:
+      "Generate a design token showcase story file with Color Palette, Typography Scale, and Spacing Scale stories. Useful for documenting a design system.",
+    inputSchema: z.object({
+      title: z
+        .string()
+        .default("Design System/Tokens")
+        .describe("Storybook sidebar title for the token showcase"),
+    }),
+  }),
+
+  generateA11yTests: tool({
+    description:
+      "Add axe-core accessibility assertions to a variant's play function. Imports @axe-core/playwright and asserts zero critical violations after the story renders.",
+    inputSchema: z.object({
+      variantName: z.string().describe("PascalCase variant name to add accessibility tests to"),
+      context: z
+        .string()
+        .nullable()
+        .optional()
+        .describe(
+          "CSS selector to scope the axe scan to, e.g. '#storybook-root'. Null = full page"
+        ),
+    }),
+  }),
+
+  addResponsiveStory: tool({
+    description:
+      "Create viewport-specific story variants for mobile, tablet, and desktop breakpoints. Each variant shares the same args but sets a different Storybook viewport parameter.",
+    inputSchema: z.object({
+      baseVariantName: z
+        .string()
+        .describe("PascalCase base variant to clone for each viewport, e.g. 'Default'"),
+    }),
+  }),
+
+  generateSnapshotTest: tool({
+    description:
+      "Generate a Jest/Vitest snapshot test file for the active story file that renders each variant with @storybook/testing-library and calls toMatchSnapshot().",
+    inputSchema: z.object({}),
+  }),
+
+  addChromatiConfig: tool({
+    description:
+      "Add a Chromatic visual regression configuration to the story file: sets chromatic parameters (delay, diffThreshold, viewports) and returns the required package.json script.",
+    inputSchema: z.object({
+      projectToken: z
+        .string()
+        .optional()
+        .describe("Chromatic project token placeholder (safe to leave as ENV var reference)"),
+      viewports: z
+        .array(z.number().int().positive())
+        .default([320, 768, 1280])
+        .describe("Viewport widths for Chromatic snapshots"),
+      diffThreshold: z
+        .number()
+        .min(0)
+        .max(1)
+        .default(0.063)
+        .describe("Pixel diff threshold (0–1) before Chromatic flags a change"),
+    }),
+  }),
+
+  inferStoriesFromProps: tool({
+    description:
+      "Given a list of component prop names and their TypeScript types as strings, infer argType controls and generate a story variant for each prop's meaningful states (e.g. disabled, loading, error).",
+    inputSchema: z.object({
+      props: z
+        .array(
+          z.object({
+            name: z.string().describe("Prop name, e.g. 'variant'"),
+            type: z.string().describe("TypeScript type string, e.g. \"'primary' | 'ghost'\""),
+            required: z.boolean().optional(),
+          })
+        )
+        .describe("Props to generate stories for"),
+    }),
+  }),
+
+  generateInteractionTest: tool({
+    description:
+      "Generate a comprehensive interaction test suite for a component: keyboard navigation, ARIA state transitions, focus management, and screen reader announcements, using @storybook/test.",
+    inputSchema: z.object({
+      variantName: z.string().describe("PascalCase variant to add the interaction test to"),
+      interactions: z
+        .array(
+          z.enum([
+            "keyboard-nav",
+            "focus-trap",
+            "aria-expanded",
+            "aria-checked",
+            "screen-reader-text",
+          ])
+        )
+        .describe("Which interaction patterns to test"),
+    }),
+  }),
+
+  exportToMDX: tool({
+    description:
+      "Export the active story file as an MDX documentation page (.stories.mdx) with a Description block, Canvas previews for each variant, and an ArgsTable.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description:
       "Search docs for Storybook patterns, CSF3 API, controls configuration, and decorators.",
     inputSchema: z.object({
       query: z.string(),
+    }),
+  }),
+
+  generateDocsPage: tool({
+    description:
+      "Generate a Docs-only story page (autodocs) for the component with a custom Description block, ArgsTable, and usage examples for each variant. Returns the MDX source.",
+    inputSchema: z.object({
+      description: z
+        .string()
+        .optional()
+        .describe("Component description to include in the docs page"),
+      includeUsageExamples: z
+        .boolean()
+        .default(true)
+        .describe("If true, include JSX usage snippets for each variant"),
+    }),
+  }),
+
+  addThemeVariants: tool({
+    description:
+      "Create story variants for each theme mode: duplicates the specified base variant with light, dark, and high-contrast theme backgrounds applied via a backgrounds parameter.",
+    inputSchema: z.object({
+      baseVariantName: z
+        .string()
+        .describe("PascalCase base variant to clone for each theme, e.g. 'Default'"),
+      themes: z
+        .array(z.enum(["light", "dark", "high-contrast"]))
+        .default(["light", "dark"])
+        .describe("Themes to generate variants for"),
+    }),
+  }),
+
+  generatePropMatrix: tool({
+    description:
+      "Generate a full prop matrix of story variants: creates one variant for every combination of the specified prop values (e.g. variant × size × disabled). Useful for visual regression testing.",
+    inputSchema: z.object({
+      props: z
+        .array(
+          z.object({
+            name: z.string().describe("Prop name, e.g. 'variant'"),
+            values: z.array(z.unknown()).describe("Values to combine, e.g. ['primary', 'ghost']"),
+          })
+        )
+        .min(1)
+        .describe("Props to create a matrix for"),
+    }),
+  }),
+
+  addI18nDecorator: tool({
+    description:
+      "Add an i18n decorator to the story file that wraps stories in an IntlProvider (react-intl) or I18nextProvider (i18next). Adds a locale toolbar dropdown and creates locale-specific story variants.",
+    inputSchema: z.object({
+      library: z
+        .enum(["react-intl", "i18next"])
+        .default("i18next")
+        .describe("i18n library to use in the decorator"),
+      locales: z
+        .array(z.string())
+        .default(["en", "de", "fr"])
+        .describe("Locale codes to add to the toolbar dropdown"),
+    }),
+  }),
+
+  inferFromDesignToken: tool({
+    description:
+      "Given a design token JSON (colors, typography, spacing), generate argType definitions with select controls for token-based props (color, size, etc.) and update the component's default args to use token values.",
+    inputSchema: z.object({
+      tokens: z
+        .record(z.string(), z.unknown())
+        .describe("Design token object, e.g. { colors: { primary: '#4F46E5' } }"),
     }),
   }),
 };

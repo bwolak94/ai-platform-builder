@@ -201,7 +201,8 @@ export function nestRecord(flat: Record<string, string>): Record<string, unknown
 export function exportLanguageJson(store: TranslationStore, lang: string): Record<string, string> {
   const result: Record<string, string> = {};
   for (const key of store.keys) {
-    result[key.key] = key.translations[lang] ?? key.sourceText;
+    const val = key.translations[lang];
+    if (val) result[key.key] = val;
   }
   return result;
 }

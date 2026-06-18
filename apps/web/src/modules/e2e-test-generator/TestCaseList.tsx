@@ -24,6 +24,7 @@ const STEP_ACTION_COLORS: Record<string, string> = {
   wait: "bg-gray-100 text-gray-700 dark:bg-gray-800/60 dark:text-gray-400",
   screenshot: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
   axe: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  intercept: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300",
   expect: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
 };
 
@@ -55,6 +56,8 @@ function stepSummary(step: TestCase["steps"][number]): string {
       return "screenshot" + (step.name ? ' "' + step.name + '"' : "");
     case "axe":
       return "axe" + (step.context ? ' "' + step.context + '"' : " (full page)");
+    case "intercept":
+      return "intercept " + step.method + " " + step.urlPattern + " → " + String(step.status);
     case "expect":
       return "expect " + step.type + (step.selector ? " [" + step.selector.value + "]" : "");
   }

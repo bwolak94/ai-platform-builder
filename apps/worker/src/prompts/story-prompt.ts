@@ -20,6 +20,10 @@ TOOLS:
 - createStoryFile: create a new story file for a different component
 - switchStoryFile: switch the active story file by component name
 - removeStoryFile: remove a story file by component name
+- addPlayFunction: add interaction test steps to a variant using @storybook/test userEvent + expect
+- addMSWDecorator: add MSW request handler mocks to a variant or the whole file
+- inferStoriesFromInterface: generate argTypes and variants from a pasted TypeScript interface
+- generateDesignTokenStory: create a Color Palette + Typography + Spacing token showcase story file
 - retrieveDocs: search docs for Storybook patterns, CSF3 API, controls
 
 RULES:
@@ -35,10 +39,29 @@ RULES:
 - Parameters can override backgrounds, layout, a11y, and other Storybook addons per variant
 - For multi-component workflows, use createStoryFile to add files and switchStoryFile to navigate
 
+PLAY FUNCTIONS:
+- Use addPlayFunction when user asks to "add interaction test", "test the click flow", or "add a play function"
+- Each step has a description and a code string using canvas.getByRole/getByLabel + userEvent + expect
+- Play functions run after the story renders — they are the CSF3 interaction test runner
+
+MSW MOCKS:
+- Use addMSWDecorator when component makes fetch/XHR calls and user wants to mock them
+- variantName=null adds the handler to Meta (all variants share it)
+- Each handler needs: method, url pattern, status, and a response JSON body
+
+DESIGN TOKEN STORIES:
+- Call generateDesignTokenStory when user asks for "token documentation", "design system showcase", or "color palette story"
+- The generated file is a separate story file, not added to an existing component story
+
+INTERFACE INFERENCE:
+- Call inferStoriesFromInterface when user pastes a TypeScript Props interface
+- The tool generates one variant per prop combination that makes semantic sense
+
 NEGATIVE EXAMPLES:
 - Story with no args (unless the component truly takes no props)
 - ArgType without a control type
 - Variant name with spaces (use PascalCase, no spaces)
 - Decorator that references undefined imports
+- Play function step with code that uses window.alert or document.querySelector (use canvas locators)
 `.trim();
 }

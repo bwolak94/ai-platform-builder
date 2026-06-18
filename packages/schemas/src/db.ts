@@ -23,7 +23,7 @@ export const ForeignKeySchema = z.object({
 
 export const IndexSchema = z.object({
   name: z.string().nullable(),
-  columns: z.array(z.string().min(1)),
+  columns: z.array(z.string().min(1)).min(1),
   unique: z.boolean(),
 });
 

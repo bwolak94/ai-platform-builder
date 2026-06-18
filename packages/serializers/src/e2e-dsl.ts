@@ -73,6 +73,16 @@ function serializeStep(step: TestStep): string {
       return "  SCREENSHOT" + (step.name ? ' "' + step.name + '"' : "");
     case "axe":
       return "  AXE" + (step.context ? ' "' + step.context + '"' : "");
+    case "intercept":
+      return (
+        "  INTERCEPT " +
+        step.method +
+        ' "' +
+        step.urlPattern +
+        '" ' +
+        String(step.status) +
+        (step.body ? " " + JSON.stringify(step.body) : "")
+      );
     case "expect":
       if (step.selector) {
         return (
@@ -246,6 +256,29 @@ function parseStep(line: string): TestStep | null {
     const ctxMatch = /"([^"]+)"/.exec(line);
     return { action: "axe", id, context: ctxMatch?.[1] ?? null };
   }
+  if (line.startsWith("INTERCEPT ")) {
+    const parts = line.slice(10).trim();
+    const methodMatch = /^(GET|POST|PUT|PATCH|DELETE)/.exec(parts);
+    const urlMatch = /"([^"]+)"/.exec(parts);
+    const statusMatch = /"\s+(\d{3})/.exec(parts);
+    const bodyStart = parts.indexOf("{");
+    let body: Record<string, unknown> | null = null;
+    if (bodyStart !== -1) {
+      try {
+        body = JSON.parse(parts.slice(bodyStart)) as Record<string, unknown>;
+      } catch {
+        body = null;
+      }
+    }
+    return {
+      action: "intercept" as const,
+      id,
+      method: (methodMatch?.[1] ?? "GET") as "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+      urlPattern: urlMatch?.[1] ?? "**/*",
+      status: parseInt(statusMatch?.[1] ?? "200", 10),
+      body,
+    };
+  }
   if (line.startsWith("EXPECT ")) {
     const rest = line.slice(7);
     const sel = parseSelector(rest);
@@ -372,6 +405,23 @@ function stepToPlaywright(step: TestStep): string {
         (step.context ? 'page, "' + step.context + '"' : "page") +
         ");"
       );
+    case "intercept": {
+      const body = step.body ? JSON.stringify(step.body) : "{}";
+      return (
+        "  await page.route(" +
+        '"' +
+        step.urlPattern +
+        '", (route) => route.fulfill({\n' +
+        "    status: " +
+        String(step.status) +
+        ",\n" +
+        '    contentType: "application/json",\n' +
+        "    body: JSON.stringify(" +
+        body +
+        "),\n" +
+        "  }));"
+      );
+    }
     case "expect": {
       if (step.type === "url")
         return '  await expect(page).toHaveURL(new RegExp("' + (step.value ?? "") + '"));';

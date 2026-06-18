@@ -104,10 +104,183 @@ export const i18nTools = {
     }),
   }),
 
+  detectUnusedKeys: tool({
+    description:
+      "Compare the defined translation keys against a list of usages extracted from source code. Returns keys that are defined but never referenced in the provided usage list.",
+    inputSchema: z.object({
+      usages: z
+        .array(z.string())
+        .describe(
+          "Flat list of dot-notation keys actually used in source code (extracted from t('key') calls)"
+        ),
+    }),
+  }),
+
+  scoreTranslationQuality: tool({
+    description:
+      "Audit translation quality across all languages. Checks for: missing ICU placeholders in target vs source, suspiciously short/truncated strings, identical source=translation (untranslated), and empty strings.",
+    inputSchema: z.object({
+      language: z
+        .string()
+        .optional()
+        .describe("Scope the audit to one language code. Omit to audit all languages."),
+    }),
+  }),
+
+  setLanguageRTL: tool({
+    description:
+      "Mark a language as right-to-left (RTL). Affects export metadata and adds a note in the preview about required dir='rtl' attributes.",
+    inputSchema: z.object({
+      code: z.string().describe("ISO language code to mark as RTL, e.g. 'ar', 'he', 'fa'"),
+      rtl: z.boolean().default(true).describe("True to mark as RTL, false to remove the flag"),
+    }),
+  }),
+
+  addGlossaryTerm: tool({
+    description:
+      "Lock a translation for a specific term in a target language. Future autoTranslate calls will use this term consistently.",
+    inputSchema: z.object({
+      sourceTerm: z.string().describe("The source language term to lock, e.g. 'Dashboard'"),
+      language: z.string().describe("Target language code for this glossary entry"),
+      targetTerm: z.string().describe("The locked translation to use, e.g. 'Tableau de bord'"),
+    }),
+  }),
+
+  generateVersionDiff: tool({
+    description:
+      "Compare the current store against a provided previous JSON snapshot and return a changelog of added, removed, and modified keys.",
+    inputSchema: z.object({
+      previousSnapshot: z
+        .record(z.string(), z.record(z.string(), z.string()))
+        .describe(
+          "Previous store snapshot as { lang: { 'dot.key': 'value' } } — paste the exported JSON"
+        ),
+    }),
+  }),
+
+  mergeNamespaces: tool({
+    description:
+      "Merge all keys from a source namespace into a target namespace and remove the source namespace. Key paths are re-prefixed: 'source.foo' → 'target.foo'.",
+    inputSchema: z.object({
+      sourceNamespace: z.string().describe("Namespace prefix to merge from, e.g. 'auth'"),
+      targetNamespace: z.string().describe("Namespace prefix to merge into, e.g. 'common'"),
+    }),
+  }),
+
+  splitNamespace: tool({
+    description:
+      "Extract a set of keys matching a prefix into a new sub-namespace. E.g. move all 'checkout.payment.*' keys into a new 'payment' namespace.",
+    inputSchema: z.object({
+      keyPrefix: z.string().describe("Full key prefix to extract, e.g. 'checkout.payment'"),
+      newNamespace: z.string().describe("New namespace root, e.g. 'payment'"),
+    }),
+  }),
+
+  findDuplicateValues: tool({
+    description:
+      "Find translation keys that have identical source text (potential consolidation candidates). Returns groups of keys sharing the same source value.",
+    inputSchema: z.object({
+      language: z
+        .string()
+        .optional()
+        .describe("Language to check for duplicate values. Defaults to source language."),
+    }),
+  }),
+
+  generateTypeFile: tool({
+    description:
+      "Generate a TypeScript declaration file with a typed TranslationKeys union and a typed t() helper, enabling compile-time key safety with i18next or next-intl.",
+    inputSchema: z.object({
+      outputFormat: z
+        .enum(["i18next", "next-intl", "react-intl"])
+        .default("i18next")
+        .describe("Target i18n library for the generated types"),
+    }),
+  }),
+
+  exportToXliff: tool({
+    description:
+      "Export translations as an XLIFF 2.0 XML file for a specific language pair, ready for professional CAT tools like OmegaT, SDL Trados, or MemoQ.",
+    inputSchema: z.object({
+      sourceLanguage: z.string().describe("Source language code, e.g. 'en'"),
+      targetLanguage: z.string().describe("Target language code, e.g. 'de'"),
+    }),
+  }),
+
+  setPluralRules: tool({
+    description:
+      "Configure plural rule categories for a language (CLDR plural rules: zero, one, two, few, many, other). Adds placeholder translation keys for each plural form.",
+    inputSchema: z.object({
+      language: z.string().describe("ISO language code to configure plurals for"),
+      forms: z
+        .array(z.enum(["zero", "one", "two", "few", "many", "other"]))
+        .describe("CLDR plural forms supported by this language"),
+    }),
+  }),
+
+  generateNamespaceSummary: tool({
+    description:
+      "Generate a Markdown summary report grouped by namespace: total keys, completion percentage per language, and list of missing translations.",
+    inputSchema: z.object({}),
+  }),
+
   retrieveDocs: tool({
     description: "Search docs for i18n patterns, ICU message format, and pluralization.",
     inputSchema: z.object({
       query: z.string(),
+    }),
+  }),
+
+  syncWithCodebase: tool({
+    description:
+      "Compare the current translation store against a list of keys extracted from source code (t() calls). Adds keys that appear in code but are missing from the store, and flags keys in the store that are unused in code.",
+    inputSchema: z.object({
+      codebaseKeys: z
+        .array(z.string())
+        .describe("All translation keys found in source code via static analysis"),
+      autoAddMissing: z
+        .boolean()
+        .default(true)
+        .describe("If true, automatically add missing keys with empty translations"),
+    }),
+  }),
+
+  suggestMachineTranslations: tool({
+    description:
+      "For each key missing a translation in the target language, suggest a machine-translated value using the source text. Returns suggestions keyed by dot-notation key — caller must confirm before applying via bulkSetTranslations.",
+    inputSchema: z.object({
+      targetLanguage: z.string().describe("ISO 639-1 language code to generate suggestions for"),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .max(100)
+        .default(20)
+        .describe("Maximum number of suggestions to return"),
+    }),
+  }),
+
+  generateICUPluralForms: tool({
+    description:
+      "Convert a simple source text string into a full ICU MessageFormat plural expression with all CLDR forms for the target language (zero, one, two, few, many, other). Returns the ICU string ready to use as a translation value.",
+    inputSchema: z.object({
+      key: z.string().describe("Dot-notation key to generate plural forms for"),
+      sourceText: z.string().describe("Singular source text, e.g. '{count} item'"),
+      language: z.string().describe("Target language code for CLDR plural rules"),
+    }),
+  }),
+
+  buildTranslationMemory: tool({
+    description:
+      "Build a translation memory from the current store: groups all keys with identical source text across namespaces and returns a lookup table of source text → translations for all languages. Useful for consistency audits and pre-populating new keys.",
+    inputSchema: z.object({}),
+  }),
+
+  exportToArb: tool({
+    description:
+      "Export translations as an ARB (Application Resource Bundle) file for a specific language, compatible with Flutter and Dart's intl package. Returns the JSON ARB content with @metadata annotations.",
+    inputSchema: z.object({
+      language: z.string().describe("ISO 639-1 language code to export, e.g. 'de'"),
     }),
   }),
 };

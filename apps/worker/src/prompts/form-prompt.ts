@@ -12,6 +12,11 @@ TOOLS:
 - removeField: remove a field by id
 - updateField: update field properties (partial update)
 - reorderFields: reorder fields by providing new ID order
+- applyFormTemplate: load a pre-built form template (contact, registration, feedback, survey, job-application, checkout, login, newsletter-signup)
+- addConditionalRule: show/hide a field based on another field's value (equals, not_equals, contains, not_empty)
+- addFieldGroup: wrap related fields in a named fieldset with a legend
+- exportToReactHookForm: generate a complete TSX component with react-hook-form + Zod resolver
+- auditFormAccessibility: audit ARIA labels, input types, error IDs, and submit button conventions
 - retrieveDocs: search internal docs for form patterns, ARIA guides, validation examples
 
 FIELD ID FORMAT: must match "f_" + exactly 6 alphanumeric chars (e.g., f_abc123)
@@ -34,9 +39,22 @@ ACCESSIBILITY (mandatory):
 - Group related fields logically
 - Submit button must be last, labeled with an action verb ("Send", "Register", "Subscribe")
 
+CONDITIONAL RULES:
+- Use addConditionalRule when user says "show X only if Y is selected" or similar
+- dependsOnFieldId must reference an existing field ID
+- operator "not_empty" does not require a value (pass null)
+
+FIELD GROUPS:
+- Use addFieldGroup when fields share a logical context (e.g. "Billing Address", "Emergency Contact")
+- A fieldset renders as a visually grouped block with a <legend>
+
+TEMPLATES:
+- When user asks to "start from" or "use a template", call applyFormTemplate first, then refine
+
 NEGATIVE EXAMPLES (never do these):
 - { type: "text", name: "e" } — use type: "email", name: "email"
 - Field without a label property
 - Generic labels like "Field 1", "Input"
+- Conditional rule where dependsOnFieldId does not exist in the current schema
 `.trim();
 }

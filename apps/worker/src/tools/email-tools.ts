@@ -174,4 +174,193 @@ export const emailTools = {
       ),
     }),
   }),
+
+  suggestSubjectLines: tool({
+    description:
+      "Generate subject line variants for the current email template. Returns 5 options with emoji variants, personalization tokens, and open-rate rationale for each.",
+    inputSchema: z.object({
+      count: z
+        .number()
+        .int()
+        .min(3)
+        .max(10)
+        .default(5)
+        .describe("Number of subject line variants to generate"),
+      tone: z
+        .enum(["professional", "friendly", "urgent", "curiosity", "benefit-focused"])
+        .optional()
+        .describe("Desired tone for the subject lines"),
+    }),
+  }),
+
+  addPersonalizationToken: tool({
+    description:
+      "Register a personalization token (e.g. {{firstName}}, {{company}}) so the preview highlights it and the agent uses it consistently in future content.",
+    inputSchema: z.object({
+      token: z.string().describe("Token name without braces, e.g. 'firstName'"),
+      description: z
+        .string()
+        .describe("What this token represents, e.g. 'The recipient first name'"),
+      exampleValue: z.string().describe("Example value for preview rendering, e.g. 'Alex'"),
+    }),
+  }),
+
+  auditEmailAccessibility: tool({
+    description:
+      "Audit the email template for screen reader compatibility: checks alt text on all images, sufficient color contrast, link text quality, and heading order.",
+    inputSchema: z.object({}),
+  }),
+
+  addLanguageVariant: tool({
+    description:
+      "Duplicate the current template structure and translate all text content into a target language. Produces a parallel template with identical layout.",
+    inputSchema: z.object({
+      language: z
+        .string()
+        .describe("ISO 639-1 language code for the variant, e.g. 'fr', 'de', 'es'"),
+      languageLabel: z.string().describe("Human-readable language name, e.g. 'French'"),
+    }),
+  }),
+
+  createCampaignSequence: tool({
+    description:
+      "Generate a multi-email drip campaign sequence. Creates separate template stubs for each email in the sequence with consistent branding and escalating CTAs.",
+    inputSchema: z.object({
+      name: z.string().describe("Campaign name, e.g. 'Onboarding Sequence'"),
+      emails: z
+        .array(
+          z.object({
+            dayOffset: z.number().int().min(0).describe("Days after signup to send this email"),
+            purpose: z
+              .string()
+              .describe("One-line description of this email goal, e.g. 'Introduce key feature'"),
+          })
+        )
+        .min(2)
+        .max(10)
+        .describe("Sequence definition — minimum 2, maximum 10 emails"),
+    }),
+  }),
+  generateABVariant: tool({
+    description:
+      "Create an A/B test variant of the current email template by duplicating the structure and applying a specified change (different subject, hero copy, or CTA). Returns both variant configs.",
+    inputSchema: z.object({
+      variantName: z.string().describe("Label for the B variant, e.g. 'urgency-cta'"),
+      change: z
+        .enum(["subject", "hero-copy", "cta-label", "cta-color"])
+        .describe("Which element to vary between A and B"),
+      bValue: z.string().describe("The alternate value for the B variant"),
+    }),
+  }),
+
+  addDynamicBlock: tool({
+    description:
+      "Add a conditionally shown section to the template: the section renders only when a personalization token matches the specified value (e.g. show upgrade CTA only for free-tier users).",
+    inputSchema: z.object({
+      conditionToken: z.string().describe("Token name to check, e.g. 'plan'"),
+      conditionValue: z.string().describe("Value that triggers the block, e.g. 'free'"),
+      section: z
+        .object({
+          type: z.enum(["hero", "text", "cta"]).describe("Section type to conditionally render"),
+          heading: z.string().optional(),
+          content: z.string().optional(),
+          ctaLabel: z.string().optional(),
+          ctaUrl: z.string().optional(),
+        })
+        .describe("Section content for the conditional block"),
+    }),
+  }),
+
+  generatePlainText: tool({
+    description:
+      "Generate a plain-text fallback version of the email template by stripping HTML and preserving the logical content hierarchy. Essential for spam filter compliance.",
+    inputSchema: z.object({}),
+  }),
+
+  validateCSSCompatibility: tool({
+    description:
+      "Check all CSS properties used in the template against the Can I Email compatibility table. Returns a list of unsupported properties per email client (Outlook, Gmail, Apple Mail) with fallback suggestions.",
+    inputSchema: z.object({}),
+  }),
+
+  addSocialProof: tool({
+    description:
+      "Insert a social proof block (star rating, testimonial quote, or logo strip) into the template at the specified position. Useful for promotional and onboarding emails.",
+    inputSchema: z.object({
+      variant: z
+        .enum(["stars-rating", "testimonial-quote", "logo-strip"])
+        .describe("Type of social proof element to add"),
+      afterSectionId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this section ID. Null = append."),
+      quote: z.string().optional().describe("Testimonial quote text (for testimonial-quote)"),
+      author: z.string().optional().describe("Attribution name (for testimonial-quote)"),
+      rating: z.number().min(1).max(5).optional().describe("Star rating value (for stars-rating)"),
+    }),
+  }),
+
+  previewDarkMode: tool({
+    description:
+      "Switch the preview pane to simulate dark-mode email rendering (adds CSS prefers-color-scheme:dark overrides in the preview iframe).",
+    inputSchema: z.object({
+      enabled: z.boolean().describe("True = enable dark mode preview; false = light mode"),
+    }),
+  }),
+
+  generateUnsubscribePage: tool({
+    description:
+      "Generate a minimal unsubscribe confirmation page HTML that can be hosted at the unsubscribeUrl. Includes a one-click confirm button and a re-subscribe link.",
+    inputSchema: z.object({
+      brandName: z.string().describe("Brand name shown on the page"),
+      accentColor: z.string().default("#4F46E5").describe("Hex color for the confirm button"),
+    }),
+  }),
+
+  generateMjml: tool({
+    description:
+      "Convert the current email template into MJML markup. MJML compiles to cross-client HTML and handles Outlook table-based layout automatically. Returns the full MJML source.",
+    inputSchema: z.object({}),
+  }),
+
+  addCountdownTimer: tool({
+    description:
+      "Insert an animated countdown timer section into the template showing days, hours, minutes, and seconds remaining until a deadline. Uses a VML fallback for Outlook compatibility.",
+    inputSchema: z.object({
+      deadline: z.string().describe("ISO 8601 deadline timestamp, e.g. '2025-12-31T23:59:59Z'"),
+      label: z.string().default("Offer ends in").describe("Label shown above the timer"),
+      afterSectionId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this section ID. Null = append."),
+    }),
+  }),
+
+  scoreReadability: tool({
+    description:
+      "Score the readability of all text content in the email using the Flesch-Kincaid grade level formula. Returns a grade level, word count, average sentence length, and suggestions for improving clarity.",
+    inputSchema: z.object({}),
+  }),
+
+  generateTextVersion: tool({
+    description:
+      "Generate a full multi-part MIME plain-text version of the email. Preserves logical structure: headings become uppercase, CTAs include the full URL in parentheses, and links are listed at the end.",
+    inputSchema: z.object({}),
+  }),
+
+  addRssBlock: tool({
+    description:
+      "Add an RSS feed section to the email template that automatically pulls and renders the latest N articles from a feed URL. Generates a placeholder columns section populated with feed item data at send time.",
+    inputSchema: z.object({
+      feedUrl: z.string().describe("RSS feed URL to pull articles from"),
+      itemCount: z.number().int().min(1).max(6).default(3).describe("Number of articles to show"),
+      afterSectionId: z
+        .string()
+        .nullable()
+        .optional()
+        .describe("Insert after this section ID. Null = append."),
+    }),
+  }),
 };
