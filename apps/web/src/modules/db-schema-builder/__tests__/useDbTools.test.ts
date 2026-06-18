@@ -138,6 +138,7 @@ describe("addTable", () => {
       await result.current.tools.addTable({
         name: "products",
         columns: [{ name: "id", type: "UUID", primaryKey: true }],
+        indexes: null,
       });
     });
     const col = result.current.schema.tables[0]?.columns[0];
@@ -283,7 +284,7 @@ describe("addRelation", () => {
     const { result } = renderHook(() => useSubject());
     await act(async () => {
       await result.current.tools.addRelation({
-        relation: { from: "posts.user_id", to: "users.id", type: "many-to-one" },
+        relation: { from: "posts.user_id", to: "users.id", type: "many-to-many" },
       });
     });
     expect(result.current.schema.relations).toHaveLength(1);
