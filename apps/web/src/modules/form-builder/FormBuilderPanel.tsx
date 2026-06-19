@@ -7,7 +7,7 @@ import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext"
 import { useFormTools } from "./hooks/useFormTools";
 import { FieldList } from "./FieldList";
 import { FieldEditor } from "./FieldEditor";
-import { ExportPanel } from "./ExportPanel";
+import { ExportHub } from "@/components/export-hub";
 import { useRegisterToolDispatch } from "@/context/toolDispatch";
 import type { FormField } from "@ai-builder/schemas";
 import type { ToolCall, ToolResult } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
@@ -110,8 +110,8 @@ export function FormBuilderPanel() {
 
       <Separator />
 
-      {/* Export */}
-      <ExportPanel schema={formSchema} />
+      {/* Export Hub */}
+      <ExportHub schema={formSchema} />
 
       {/* Field editor slide-over */}
       <FieldEditor

@@ -7,21 +7,31 @@ import { useToolDispatch } from "@/context/toolDispatch";
 import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext";
 import { useLayoutBuilderContext } from "@/context/layoutBuilder/LayoutBuilderContext";
 import { useEmailBuilderContext } from "@/context/emailBuilder/EmailBuilderContext";
-import { serializeFormDSL, serializeLayoutDSL, serializeEmailDSL } from "@ai-builder/serializers";
+import {
+  serializeFormDSL,
+  serializeLayoutDSL,
+  serializeEmailDSL,
+  deserializeFormDSL,
+  deserializeLayoutDSL,
+} from "@ai-builder/serializers";
+import { useRegisterAgentActions } from "@/context/agentActions/AgentActionsContext";
+import { SnapshotProvider } from "@/context/snapshots/SnapshotContext";
+import { SnapshotSidebar } from "@/components/snapshots";
 import { ThemeToggle } from "@/ui";
 import { ChatPanel } from "../-components/ChatPanel";
 import { ModeSwitcher } from "../-components/ModeSwitcher";
 import { PreviewFrame } from "../-components/PreviewFrame";
 import type { BuilderMode } from "@/types";
 import type { ToolCall } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
+import type { SnapshotContext as SnapshotContextData } from "@/lib/snapshots-api";
 
-export function AppShell() {
+function AppShellInner() {
   const { mode, setMode } = useMode();
   const navigate = useNavigate();
   const location = useLocation();
   const { dispatchRef } = useToolDispatch();
-  const { formSchema } = useFormBuilderContext();
-  const { layoutTree } = useLayoutBuilderContext();
+  const { formSchema, setFormSchema } = useFormBuilderContext();
+  const { layoutTree, setLayoutTree } = useLayoutBuilderContext();
   const { template: emailTemplate } = useEmailBuilderContext();
 
   const onToolCall = useCallback(
@@ -45,6 +55,18 @@ export function AppShell() {
     mode,
     onToolCall,
   });
+
+  // Register agent actions so deep components can fire targeted messages
+  const submitMessage = useCallback(
+    (text: string) => {
+      // setInput updates inputRef.current synchronously, so handleSubmit reads it correctly
+      setInput(text);
+      handleSubmit();
+    },
+    [setInput, handleSubmit]
+  );
+
+  useRegisterAgentActions({ setInput, sendMessage: submitMessage });
 
   // Sync form schema to agent context so system prompt stays accurate
   useEffect(() => {
@@ -72,6 +94,40 @@ export function AppShell() {
     void navigate({ to: `/${newMode}` });
   }
 
+  // Snapshot: capture current serialized context
+  const getCurrentContext = useCallback((): SnapshotContextData => {
+    return {
+      formSchema: serializeFormDSL(formSchema),
+      layoutTree: serializeLayoutDSL(layoutTree),
+    };
+  }, [formSchema, layoutTree]);
+
+  // Snapshot: restore — parse DSL strings back into React state
+  const handleRestoreSnapshot = useCallback(
+    (context: SnapshotContextData) => {
+      if (context.formSchema) {
+        try {
+          setFormSchema(deserializeFormDSL(context.formSchema));
+        } catch {
+          console.warn("[AppShell] failed to deserialize formSchema from snapshot");
+        }
+      }
+      if (context.layoutTree) {
+        try {
+          setLayoutTree(deserializeLayoutDSL(context.layoutTree));
+        } catch {
+          console.warn("[AppShell] failed to deserialize layoutTree from snapshot");
+        }
+      }
+      // Sync restored context back to the DO
+      const restoredCtx: Record<string, string> = {};
+      if (context.formSchema) restoredCtx.formSchema = context.formSchema;
+      if (context.layoutTree) restoredCtx.layoutTree = context.layoutTree;
+      if (Object.keys(restoredCtx).length > 0) sendContext(restoredCtx);
+    },
+    [setFormSchema, setLayoutTree, sendContext]
+  );
+
   const isPreviewVisible =
     location.pathname === "/form" ||
     location.pathname === "/layout" ||
@@ -82,7 +138,13 @@ export function AppShell() {
       <header className="border-b">
         <div className="flex items-center justify-between px-4 py-2">
           <span className="text-sm font-semibold tracking-tight">AI Platform Builder</span>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <SnapshotSidebar
+              getCurrentContext={getCurrentContext}
+              onRestore={handleRestoreSnapshot}
+            />
+            <ThemeToggle />
+          </div>
         </div>
         <ModeSwitcher currentMode={mode} onModeChange={handleModeChange} />
       </header>
@@ -124,5 +186,15 @@ export function AppShell() {
         </PanelGroup>
       </main>
     </div>
+  );
+}
+
+export function AppShell() {
+  const { mode } = useMode();
+
+  return (
+    <SnapshotProvider mode={mode}>
+      <AppShellInner />
+    </SnapshotProvider>
   );
 }
