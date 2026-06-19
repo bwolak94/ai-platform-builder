@@ -5,14 +5,17 @@ import type { SnapshotEntry } from "@/lib/snapshots-api";
 
 // ─── Mock the API module ──────────────────────────────────────────────────────
 
-const mockList = vi.fn<() => Promise<SnapshotEntry[]>>();
-const mockSave = vi.fn<() => Promise<SnapshotEntry>>();
-const mockDelete = vi.fn<() => Promise<void>>();
+// Typed with explicit signatures so spread args are type-safe
+const mockList = vi.fn<(mode: string) => Promise<SnapshotEntry[]>>();
+const mockSave =
+  vi.fn<(mode: string, name: string, ctx: Record<string, unknown>) => Promise<SnapshotEntry>>();
+const mockDelete = vi.fn<(mode: string, id: string) => Promise<void>>();
 
 vi.mock("@/lib/snapshots-api", () => ({
-  listSnapshots: (...args: unknown[]) => mockList(...args),
-  saveSnapshot: (...args: unknown[]) => mockSave(...args),
-  deleteSnapshot: (...args: unknown[]) => mockDelete(...args),
+  listSnapshots: (mode: string) => mockList(mode),
+  saveSnapshot: (mode: string, name: string, ctx: Record<string, unknown>) =>
+    mockSave(mode, name, ctx),
+  deleteSnapshot: (mode: string, id: string) => mockDelete(mode, id),
 }));
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
