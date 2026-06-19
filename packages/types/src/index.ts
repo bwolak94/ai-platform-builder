@@ -9,7 +9,8 @@ export type BuilderMode =
   | "story"
   | "i18n"
   | "e2e"
-  | "wordpress";
+  | "wordpress"
+  | "chat";
 
 export interface BuilderModeConfig {
   id: BuilderMode;
@@ -30,6 +31,11 @@ export const BUILDER_MODES: BuilderModeConfig[] = [
     id: "wordpress",
     label: "WordPress Builder",
     description: "Build WordPress themes and plugins with ACF",
+  },
+  {
+    id: "chat",
+    label: "General Chat",
+    description: "AI assistant with web search, code execution, and 20 tools",
   },
 ];
 

@@ -5,7 +5,7 @@ import { ModeSwitcher } from "./ModeSwitcher";
 import { BUILDER_MODES } from "@/utils";
 
 describe("ModeSwitcher", () => {
-  it("renders all 8 mode buttons", () => {
+  it("renders all mode buttons", () => {
     render(<ModeSwitcher currentMode="form" onModeChange={vi.fn()} />);
     BUILDER_MODES.forEach((mode) => {
       expect(screen.getByRole("button", { name: mode.label })).toBeInTheDocument();

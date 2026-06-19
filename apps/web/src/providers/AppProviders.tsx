@@ -4,6 +4,7 @@ import { FormBuilderProvider } from "@/context/formBuilder/FormBuilderContext";
 import { LayoutBuilderProvider } from "@/context/layoutBuilder/LayoutBuilderContext";
 import { EmailBuilderProvider } from "@/context/emailBuilder/EmailBuilderContext";
 import { WordPressBuilderProvider } from "@/context/wordpressBuilder/WordPressBuilderContext";
+import { GeneralChatProvider } from "@/context/generalChat/GeneralChatContext";
 import { AgentActionsProvider } from "@/context/agentActions/AgentActionsProvider";
 import type { AppProvidersProps } from "./AppProviders.types";
 
@@ -15,7 +16,9 @@ export function AppProviders({ children }: AppProvidersProps) {
           <FormBuilderProvider>
             <LayoutBuilderProvider>
               <EmailBuilderProvider>
-                <WordPressBuilderProvider>{children}</WordPressBuilderProvider>
+                <WordPressBuilderProvider>
+                  <GeneralChatProvider>{children}</GeneralChatProvider>
+                </WordPressBuilderProvider>
               </EmailBuilderProvider>
             </LayoutBuilderProvider>
           </FormBuilderProvider>

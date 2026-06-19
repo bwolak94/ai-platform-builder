@@ -10,6 +10,7 @@ import { buildSystemPrompt } from "./prompts";
 import { getToolsForMode } from "./tools";
 import { buildRetrieveDocsTool } from "./rag/retrieve";
 import { buildI18nServerTools } from "./tools/i18n-server-tools";
+import { buildChatServerTools } from "./tools/chat-server-tools";
 import { createLogger } from "./observability";
 
 const MAX_SNAPSHOTS = 20;
@@ -179,6 +180,12 @@ export class BuilderAgent extends AIChatAgent<Env> {
       const i18nServerTools =
         mode === "i18n" && env.ANTHROPIC_API_KEY ? buildI18nServerTools(env.ANTHROPIC_API_KEY) : {};
 
+      // Chat server tools: 15 tools that run on the worker (web search, LLM sub-calls, etc.)
+      const chatServerTools =
+        mode === "chat" && env.ANTHROPIC_API_KEY
+          ? buildChatServerTools(env.ANTHROPIC_API_KEY, env.BRAVE_API_KEY)
+          : {};
+
       // Prefer Claude when ANTHROPIC_API_KEY is set, fall back to GPT-4o
       const model = env.ANTHROPIC_API_KEY
         ? createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })("claude-sonnet-4-6")
@@ -198,7 +205,12 @@ export class BuilderAgent extends AIChatAgent<Env> {
         model,
         system: systemPrompt,
         messages,
-        tools: { ...modeTools, retrieveDocs: retrieveDocsTool, ...i18nServerTools },
+        tools: {
+          ...modeTools,
+          retrieveDocs: retrieveDocsTool,
+          ...i18nServerTools,
+          ...chatServerTools,
+        },
         stopWhen: stepCountIs(10),
         onFinish: async (finishResult) => {
           console.log("[BuilderAgent] stream finished, finish reason:", finishResult.finishReason);

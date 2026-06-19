@@ -8,6 +8,7 @@ import { buildStorySystemPrompt } from "./story-prompt";
 import { buildI18nSystemPrompt } from "./i18n-prompt";
 import { buildE2eSystemPrompt } from "./e2e-prompt";
 import { buildWordPressSystemPrompt } from "./wordpress-prompt";
+import { buildChatSystemPrompt } from "./chat-prompt";
 
 const DSL_KEY: Record<BuilderMode, keyof Context> = {
   form: "formSchema",
@@ -19,6 +20,7 @@ const DSL_KEY: Record<BuilderMode, keyof Context> = {
   i18n: "i18nStore",
   e2e: "testFile",
   wordpress: "wordpressState",
+  chat: "chatContext",
 };
 
 export function buildSystemPrompt(mode: BuilderMode, context: Context): string {
@@ -43,5 +45,7 @@ export function buildSystemPrompt(mode: BuilderMode, context: Context): string {
       return buildE2eSystemPrompt(dsl);
     case "wordpress":
       return buildWordPressSystemPrompt(dsl);
+    case "chat":
+      return buildChatSystemPrompt(dsl);
   }
 }
