@@ -9,6 +9,7 @@ export interface SnapshotContext {
   storyFile?: string | null;
   i18nStore?: string | null;
   testFile?: string | null;
+  wordpressState?: string | null;
 }
 
 export interface SnapshotEntry {

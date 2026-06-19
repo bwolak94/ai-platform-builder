@@ -7,12 +7,15 @@ import { useToolDispatch } from "@/context/toolDispatch";
 import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext";
 import { useLayoutBuilderContext } from "@/context/layoutBuilder/LayoutBuilderContext";
 import { useEmailBuilderContext } from "@/context/emailBuilder/EmailBuilderContext";
+import { useWordPressBuilderContext } from "@/context/wordpressBuilder/WordPressBuilderContext";
 import {
   serializeFormDSL,
   serializeLayoutDSL,
   serializeEmailDSL,
+  serializeWordPressDSL,
   deserializeFormDSL,
   deserializeLayoutDSL,
+  deserializeWordPressDSL,
 } from "@ai-builder/serializers";
 import { useRegisterAgentActions } from "@/context/agentActions/AgentActionsContext";
 import { SnapshotProvider } from "@/context/snapshots/SnapshotContext";
@@ -33,6 +36,7 @@ function AppShellInner() {
   const { formSchema, setFormSchema } = useFormBuilderContext();
   const { layoutTree, setLayoutTree } = useLayoutBuilderContext();
   const { template: emailTemplate } = useEmailBuilderContext();
+  const { project: wpProject, setProject: setWpProject } = useWordPressBuilderContext();
 
   const onToolCall = useCallback(
     (call: ToolCall) => {
@@ -89,6 +93,13 @@ function AppShellInner() {
     }
   }, [emailTemplate, mode, sendContext]);
 
+  // Sync WordPress project DSL to agent context
+  useEffect(() => {
+    if (mode === "wordpress") {
+      sendContext({ wordpressState: serializeWordPressDSL(wpProject) });
+    }
+  }, [wpProject, mode, sendContext]);
+
   function handleModeChange(newMode: BuilderMode) {
     setMode(newMode);
     void navigate({ to: `/${newMode}` });
@@ -99,8 +110,9 @@ function AppShellInner() {
     return {
       formSchema: serializeFormDSL(formSchema),
       layoutTree: serializeLayoutDSL(layoutTree),
+      wordpressState: serializeWordPressDSL(wpProject),
     };
-  }, [formSchema, layoutTree]);
+  }, [formSchema, layoutTree, wpProject]);
 
   // Snapshot: restore — parse DSL strings back into React state
   const handleRestoreSnapshot = useCallback(
@@ -119,13 +131,22 @@ function AppShellInner() {
           console.warn("[AppShell] failed to deserialize layoutTree from snapshot");
         }
       }
+      if (context.wordpressState) {
+        try {
+          const partial = deserializeWordPressDSL(context.wordpressState);
+          setWpProject((prev) => ({ ...prev, ...partial }));
+        } catch {
+          console.warn("[AppShell] failed to deserialize wordpressState from snapshot");
+        }
+      }
       // Sync restored context back to the DO
       const restoredCtx: Record<string, string> = {};
       if (context.formSchema) restoredCtx.formSchema = context.formSchema;
       if (context.layoutTree) restoredCtx.layoutTree = context.layoutTree;
+      if (context.wordpressState) restoredCtx.wordpressState = context.wordpressState;
       if (Object.keys(restoredCtx).length > 0) sendContext(restoredCtx);
     },
-    [setFormSchema, setLayoutTree, sendContext]
+    [setFormSchema, setLayoutTree, setWpProject, sendContext]
   );
 
   const isPreviewVisible =

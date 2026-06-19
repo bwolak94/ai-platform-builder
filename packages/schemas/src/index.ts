@@ -6,3 +6,4 @@ export * from "./email";
 export * from "./stories";
 export * from "./i18n";
 export * from "./e2e";
+export * from "./wordpress";
