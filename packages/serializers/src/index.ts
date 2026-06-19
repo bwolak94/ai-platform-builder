@@ -8,3 +8,4 @@ export * from "./i18n-dsl";
 export * from "./e2e-dsl";
 export * from "./schema-diff";
 export * from "./form-exporters";
+export * from "./wordpress-dsl";

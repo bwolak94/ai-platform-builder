@@ -7,6 +7,7 @@ import { buildEmailSystemPrompt } from "./email-prompt";
 import { buildStorySystemPrompt } from "./story-prompt";
 import { buildI18nSystemPrompt } from "./i18n-prompt";
 import { buildE2eSystemPrompt } from "./e2e-prompt";
+import { buildWordPressSystemPrompt } from "./wordpress-prompt";
 
 const DSL_KEY: Record<BuilderMode, keyof Context> = {
   form: "formSchema",
@@ -17,6 +18,7 @@ const DSL_KEY: Record<BuilderMode, keyof Context> = {
   story: "storyFile",
   i18n: "i18nStore",
   e2e: "testFile",
+  wordpress: "wordpressState",
 };
 
 export function buildSystemPrompt(mode: BuilderMode, context: Context): string {
@@ -39,5 +41,7 @@ export function buildSystemPrompt(mode: BuilderMode, context: Context): string {
       return buildI18nSystemPrompt(dsl);
     case "e2e":
       return buildE2eSystemPrompt(dsl);
+    case "wordpress":
+      return buildWordPressSystemPrompt(dsl);
   }
 }

@@ -13,7 +13,16 @@ export interface Env {
   RESEND_API_KEY?: string;
 }
 
-export type BuilderMode = "form" | "layout" | "api" | "db" | "email" | "story" | "i18n" | "e2e";
+export type BuilderMode =
+  | "form"
+  | "layout"
+  | "api"
+  | "db"
+  | "email"
+  | "story"
+  | "i18n"
+  | "e2e"
+  | "wordpress";
 
 export const BUILDER_MODES = [
   "form",
@@ -24,6 +33,7 @@ export const BUILDER_MODES = [
   "story",
   "i18n",
   "e2e",
+  "wordpress",
 ] as const;
 
 export const ContextSchema = z.object({
@@ -35,6 +45,7 @@ export const ContextSchema = z.object({
   storyFile: z.string().nullable().optional(),
   i18nStore: z.string().nullable().optional(),
   testFile: z.string().nullable().optional(),
+  wordpressState: z.string().nullable().optional(),
 });
 
 export interface SnapshotEntry {
@@ -61,7 +72,7 @@ export const IncomingMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("set_mode"),
-    mode: z.enum(["form", "layout", "api", "db", "email", "story", "i18n", "e2e"]),
+    mode: z.enum(["form", "layout", "api", "db", "email", "story", "i18n", "e2e", "wordpress"]),
   }),
   z.object({
     type: z.literal("update_context"),

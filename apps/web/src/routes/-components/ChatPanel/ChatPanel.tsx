@@ -201,6 +201,24 @@ const HINTS: Record<BuilderMode, ModeHints> = {
       "Convert this Cypress test file to a Playwright spec",
     ],
   },
+  wordpress: {
+    tagline:
+      "Scaffold WordPress themes and plugins with ACF, CPTs, shortcodes, and REST endpoints.",
+    prompts: [
+      "Initialize a new WordPress theme with full boilerplate (functions.php, templates, style.css)",
+      "Initialize a new WordPress plugin with the standard file structure and activation hooks",
+      "Add an ACF field group for the Page post type with hero heading, image, and CTA fields",
+      "Register a Portfolio custom post type with title, editor, thumbnail, and excerpt support",
+      "Generate a shortcode [latest_posts] that displays the 5 most recent posts",
+      "Add a REST API endpoint GET /wp-json/myapi/v1/featured-products",
+      "Register a custom image size hero-banner at 1920x600px with crop",
+      "Add an ACF Gutenberg block called Hero Block with a heading and background image field",
+      "Register a primary and footer navigation menu",
+      "Add a custom widget area named Sidebar Primary",
+      "Generate a custom taxonomy called Project Category for the Portfolio CPT",
+      "Add wp_enqueue_scripts to register a Google Fonts stylesheet",
+    ],
+  },
 };
 
 // ─── Thinking indicator ───────────────────────────────────────────────────────

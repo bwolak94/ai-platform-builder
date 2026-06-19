@@ -3,6 +3,7 @@ import { ToolDispatchProvider } from "@/context/toolDispatch/ToolDispatchProvide
 import { FormBuilderProvider } from "@/context/formBuilder/FormBuilderContext";
 import { LayoutBuilderProvider } from "@/context/layoutBuilder/LayoutBuilderContext";
 import { EmailBuilderProvider } from "@/context/emailBuilder/EmailBuilderContext";
+import { WordPressBuilderProvider } from "@/context/wordpressBuilder/WordPressBuilderContext";
 import { AgentActionsProvider } from "@/context/agentActions/AgentActionsProvider";
 import type { AppProvidersProps } from "./AppProviders.types";
 
@@ -13,7 +14,9 @@ export function AppProviders({ children }: AppProvidersProps) {
         <AgentActionsProvider>
           <FormBuilderProvider>
             <LayoutBuilderProvider>
-              <EmailBuilderProvider>{children}</EmailBuilderProvider>
+              <EmailBuilderProvider>
+                <WordPressBuilderProvider>{children}</WordPressBuilderProvider>
+              </EmailBuilderProvider>
             </LayoutBuilderProvider>
           </FormBuilderProvider>
         </AgentActionsProvider>
