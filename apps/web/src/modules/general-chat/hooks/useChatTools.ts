@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useGeneralChatContext } from "@/context/generalChat/GeneralChatContext";
 import type { ToolCall } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
@@ -82,154 +83,162 @@ function hexDecode(hex: string): string {
 export function useChatTools() {
   const { addArtifact } = useGeneralChatContext();
 
-  async function dispatch(call: ToolCall): Promise<ToolResult> {
-    switch (call.toolName) {
-      // ── runCode ─────────────────────────────────────────────────────────────
-      case "runCode": {
-        const { code, label } = call.args as { code: string; label?: string };
-        try {
-          // Capture console.log output before running
+  const dispatch = useCallback(
+    async (call: ToolCall): Promise<ToolResult> => {
+      switch (call.toolName) {
+        // ── runCode ─────────────────────────────────────────────────────────────
+        case "runCode": {
+          const { code, label } = call.args as { code: string; label?: string };
           const logs: string[] = [];
           const origLog = console.log;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          console.log = (...args: any[]) => {
-            logs.push(args.map(String).join(" "));
+          try {
+            // Capture console.log output — restore in finally to avoid console leak
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            console.log = (...args: any[]) => {
+              logs.push(args.map(String).join(" "));
+            };
+            // eslint-disable-next-line @typescript-eslint/no-implied-eval
+            const fn = new Function(code) as () => unknown;
+            const returned = fn();
+
+            const output =
+              [...logs, returned !== undefined ? `→ ${JSON.stringify(returned)}` : ""]
+                .filter(Boolean)
+                .join("\n") || "(no output)";
+
+            addArtifact({
+              type: "code",
+              title: label ?? "Code Output",
+              content: output,
+              language: "text",
+            });
+            return { output };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "Execution failed";
+            addArtifact({ type: "text", title: "Execution Error", content: msg });
+            return { error: msg };
+          } finally {
+            console.log = origLog;
+          }
+        }
+
+        // ── transformJson ────────────────────────────────────────────────────────
+        case "transformJson": {
+          const { json, query, label } = call.args as {
+            json: string;
+            query: string;
+            label?: string;
           };
-          // eslint-disable-next-line @typescript-eslint/no-implied-eval
-          const fn = new Function(code) as () => unknown;
-          const returned = fn();
-          console.log = origLog;
+          try {
+            const parsed: unknown = JSON.parse(json);
+            const result = jsonPath(parsed, query);
+            const formatted = JSON.stringify(result, null, 2);
+            addArtifact({
+              type: "data",
+              title: label ?? `JSON: ${query}`,
+              content: formatted,
+              language: "json",
+            });
+            return { result: formatted };
+          } catch (err) {
+            return { error: err instanceof Error ? err.message : "JSON parse failed" };
+          }
+        }
 
-          const output =
-            [...logs, returned !== undefined ? `→ ${JSON.stringify(returned)}` : ""]
-              .filter(Boolean)
-              .join("\n") || "(no output)";
+        // ── diffText ─────────────────────────────────────────────────────────────
+        case "diffText": {
+          const { textA, textB, title } = call.args as {
+            textA: string;
+            textB: string;
+            title?: string;
+          };
+          const diff = lineDiff(textA, textB);
+          const added = diff.split("\n").filter((l) => l.startsWith("+ ")).length;
+          const removed = diff.split("\n").filter((l) => l.startsWith("- ")).length;
+          addArtifact({
+            type: "diff",
+            title: title ?? "Text Diff",
+            content: diff,
+          });
+          return { diff, added, removed };
+        }
 
+        // ── calculateTokens ──────────────────────────────────────────────────────
+        case "calculateTokens": {
+          const { text, model = "claude" } = call.args as { text: string; model?: string };
+          const tokens = estimateTokens(text, model);
+          const chars = text.length;
+          const words = text.split(/\s+/).filter(Boolean).length;
+          const result = `~${String(tokens)} tokens  |  ${String(words)} words  |  ${String(chars)} chars`;
+          addArtifact({ type: "text", title: `Token Count (${model})`, content: result });
+          return { tokens, words, chars, model };
+        }
+
+        // ── encodeDecodeText ─────────────────────────────────────────────────────
+        case "encodeDecodeText": {
+          const { text, operation } = call.args as {
+            text: string;
+            operation: string;
+          };
+          let result = "";
+          let err: string | undefined;
+          try {
+            switch (operation) {
+              case "base64encode": {
+                const encBytes = new TextEncoder().encode(text);
+                const binStr = Array.from(encBytes, (b) => String.fromCharCode(b)).join("");
+                // eslint-disable-next-line @typescript-eslint/no-deprecated
+                result = btoa(binStr);
+                break;
+              }
+              case "base64decode": {
+                // eslint-disable-next-line @typescript-eslint/no-deprecated
+                const binStr = atob(text);
+                const decBytes = new Uint8Array(Array.from(binStr, (c) => c.charCodeAt(0)));
+                result = new TextDecoder().decode(decBytes);
+                break;
+              }
+              case "urlencode":
+                result = encodeURIComponent(text);
+                break;
+              case "urldecode":
+                result = decodeURIComponent(text);
+                break;
+              case "hexencode":
+                result = hexEncode(text);
+                break;
+              case "hexdecode":
+                result = hexDecode(text);
+                break;
+              case "sha256": {
+                const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+                result = Array.from(new Uint8Array(buf))
+                  .map((b) => b.toString(16).padStart(2, "0"))
+                  .join("");
+                break;
+              }
+              default:
+                err = `Unknown operation: ${operation}`;
+            }
+          } catch (e) {
+            err = e instanceof Error ? e.message : "Operation failed";
+          }
+          if (err) return { error: err };
           addArtifact({
             type: "code",
-            title: label ?? "Code Output",
-            content: output,
+            title: operation,
+            content: result,
             language: "text",
           });
-          return { output };
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : "Execution failed";
-          addArtifact({ type: "text", title: "Execution Error", content: msg });
-          return { error: msg };
+          return { result, operation };
         }
-      }
 
-      // ── transformJson ────────────────────────────────────────────────────────
-      case "transformJson": {
-        const { json, query, label } = call.args as { json: string; query: string; label?: string };
-        try {
-          const parsed: unknown = JSON.parse(json);
-          const result = jsonPath(parsed, query);
-          const formatted = JSON.stringify(result, null, 2);
-          addArtifact({
-            type: "data",
-            title: label ?? `JSON: ${query}`,
-            content: formatted,
-            language: "json",
-          });
-          return { result: formatted };
-        } catch (err) {
-          return { error: err instanceof Error ? err.message : "JSON parse failed" };
-        }
+        default:
+          return { error: `Unknown chat tool: ${call.toolName}` };
       }
-
-      // ── diffText ─────────────────────────────────────────────────────────────
-      case "diffText": {
-        const { textA, textB, title } = call.args as {
-          textA: string;
-          textB: string;
-          title?: string;
-        };
-        const diff = lineDiff(textA, textB);
-        const added = diff.split("\n").filter((l) => l.startsWith("+ ")).length;
-        const removed = diff.split("\n").filter((l) => l.startsWith("- ")).length;
-        addArtifact({
-          type: "diff",
-          title: title ?? "Text Diff",
-          content: diff,
-        });
-        return { diff, added, removed };
-      }
-
-      // ── calculateTokens ──────────────────────────────────────────────────────
-      case "calculateTokens": {
-        const { text, model = "claude" } = call.args as { text: string; model?: string };
-        const tokens = estimateTokens(text, model);
-        const chars = text.length;
-        const words = text.split(/\s+/).filter(Boolean).length;
-        const result = `~${String(tokens)} tokens  |  ${String(words)} words  |  ${String(chars)} chars`;
-        addArtifact({ type: "text", title: `Token Count (${model})`, content: result });
-        return { tokens, words, chars, model };
-      }
-
-      // ── encodeDecodeText ─────────────────────────────────────────────────────
-      case "encodeDecodeText": {
-        const { text, operation } = call.args as {
-          text: string;
-          operation: string;
-        };
-        let result = "";
-        let err: string | undefined;
-        try {
-          switch (operation) {
-            case "base64encode": {
-              const encBytes = new TextEncoder().encode(text);
-              const binStr = Array.from(encBytes, (b) => String.fromCharCode(b)).join("");
-              // eslint-disable-next-line @typescript-eslint/no-deprecated
-              result = btoa(binStr);
-              break;
-            }
-            case "base64decode": {
-              // eslint-disable-next-line @typescript-eslint/no-deprecated
-              const binStr = atob(text);
-              const decBytes = new Uint8Array(Array.from(binStr, (c) => c.charCodeAt(0)));
-              result = new TextDecoder().decode(decBytes);
-              break;
-            }
-            case "urlencode":
-              result = encodeURIComponent(text);
-              break;
-            case "urldecode":
-              result = decodeURIComponent(text);
-              break;
-            case "hexencode":
-              result = hexEncode(text);
-              break;
-            case "hexdecode":
-              result = hexDecode(text);
-              break;
-            case "sha256": {
-              const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-              result = Array.from(new Uint8Array(buf))
-                .map((b) => b.toString(16).padStart(2, "0"))
-                .join("");
-              break;
-            }
-            default:
-              err = `Unknown operation: ${operation}`;
-          }
-        } catch (e) {
-          err = e instanceof Error ? e.message : "Operation failed";
-        }
-        if (err) return { error: err };
-        addArtifact({
-          type: "code",
-          title: `${operation}: result`,
-          content: result,
-          language: "text",
-        });
-        return { result, operation };
-      }
-
-      default:
-        return { error: `Unknown chat tool: ${call.toolName}` };
-    }
-  }
+    },
+    [addArtifact]
+  );
 
   return { dispatch };
 }

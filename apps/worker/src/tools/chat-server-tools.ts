@@ -15,9 +15,37 @@ const BraveResponseSchema = z.object({
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Extract the first balanced JSON object or array from LLM output. */
 function extractJson(text: string): string {
-  const m = /(\{[\s\S]*\}|\[[\s\S]*\])/.exec(text);
-  return m ? m[0] : text;
+  const start = text.search(/[{[]/);
+  if (start === -1) return text;
+  const opener = text[start] as "{" | "[";
+  const closer = opener === "{" ? "}" : "]";
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === opener) depth++;
+    else if (ch === closer) {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return text.slice(start);
 }
 
 async function llm(
