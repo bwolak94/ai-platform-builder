@@ -201,6 +201,32 @@ const HINTS: Record<BuilderMode, ModeHints> = {
       "Convert this Cypress test file to a Playwright spec",
     ],
   },
+  chat: {
+    tagline:
+      "General-purpose AI assistant with 20 tools: web search, code execution, transforms, and more.",
+    prompts: [
+      "Search the web for the latest Claude 4.5 release notes",
+      "Fetch https://example.com and summarise the content",
+      "Generate 10 user records with id, name, email, role (admin|viewer), and createdAt",
+      "Run this JS and show me the output: return [1,2,3,4,5].reduce((a,b)=>a+b,0)",
+      "Format this SQL: select u.id,u.name,o.total from users u join orders o on u.id=o.user_id",
+      "Write Vitest tests for a function that validates an email address",
+      "Convert this Python dataclass to a TypeScript interface",
+      "Explain this error: Cannot read properties of undefined (reading 'map')",
+      "Summarise the following text in 3 bullet points",
+      "Translate 'Good morning, how are you?' into Japanese, French, and Arabic",
+      "Extract {title, salary, techStack[]} from this job posting",
+      "Generate a Mermaid sequence diagram for a JWT authentication flow",
+      "Turn these commits into a CHANGELOG for v2.0.0",
+      "Generate a 6-colour accessible palette for a fintech brand, primary blue",
+      "Break down 'Add OAuth2 login with Google' into implementation tasks",
+      "Estimate story points for migrating the PostgreSQL database to PlanetScale",
+      "Show me the diff between 'Hello World' and 'Hello Claude'",
+      "Count tokens in my system prompt",
+      "Base64-encode this string: admin:secretpassword",
+      "Query this JSON for the first user's email",
+    ],
+  },
   wordpress: {
     tagline:
       "Scaffold WordPress themes and plugins with ACF, CPTs, shortcodes, and REST endpoints.",

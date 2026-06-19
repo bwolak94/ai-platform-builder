@@ -14,6 +14,11 @@ export const BUILDER_MODES: BuilderModeConfig[] = [
     label: "WordPress Builder",
     description: "Build WordPress themes and plugins with ACF",
   },
+  {
+    id: "chat",
+    label: "General Chat",
+    description: "AI assistant with web search, code execution, and 20 tools",
+  },
 ];
 
 export const DEFAULT_MODE: BuilderMode = "form";

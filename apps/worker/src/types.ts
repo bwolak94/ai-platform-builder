@@ -11,6 +11,8 @@ export interface Env {
   APP_ENV: string;
   // Optional: set to enable "Send test email" feature via Resend
   RESEND_API_KEY?: string;
+  // Optional: Brave Search API key for the General Chat searchWeb tool
+  BRAVE_API_KEY?: string;
 }
 
 export type BuilderMode =
@@ -22,7 +24,8 @@ export type BuilderMode =
   | "story"
   | "i18n"
   | "e2e"
-  | "wordpress";
+  | "wordpress"
+  | "chat";
 
 export const BUILDER_MODES = [
   "form",
@@ -34,6 +37,7 @@ export const BUILDER_MODES = [
   "i18n",
   "e2e",
   "wordpress",
+  "chat",
 ] as const;
 
 export const ContextSchema = z.object({
@@ -46,6 +50,7 @@ export const ContextSchema = z.object({
   i18nStore: z.string().nullable().optional(),
   testFile: z.string().nullable().optional(),
   wordpressState: z.string().nullable().optional(),
+  chatContext: z.string().nullable().optional(),
 });
 
 export interface SnapshotEntry {
@@ -72,7 +77,18 @@ export const IncomingMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("set_mode"),
-    mode: z.enum(["form", "layout", "api", "db", "email", "story", "i18n", "e2e", "wordpress"]),
+    mode: z.enum([
+      "form",
+      "layout",
+      "api",
+      "db",
+      "email",
+      "story",
+      "i18n",
+      "e2e",
+      "wordpress",
+      "chat",
+    ]),
   }),
   z.object({
     type: z.literal("update_context"),

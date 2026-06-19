@@ -9,6 +9,7 @@ import { storyTools } from "./story-tools";
 import { i18nTools } from "./i18n-tools";
 import { e2eTools } from "./e2e-tools";
 import { wordpressTools } from "./wordpress-tools";
+import { chatTools } from "./chat-tools";
 
 // Each tool module exports client-side tools (no execute) for one builder mode.
 // The double cast is necessary because TypeScript's strict mode prevents direct
@@ -37,5 +38,7 @@ export function getToolsForMode(mode: BuilderMode): ToolSet {
       return asToolSet(e2eTools);
     case "wordpress":
       return asToolSet(wordpressTools);
+    case "chat":
+      return asToolSet(chatTools);
   }
 }

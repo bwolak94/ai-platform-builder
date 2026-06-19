@@ -18,6 +18,7 @@ import { Route as FormIndexRouteImport } from './routes/form/index'
 import { Route as EmailIndexRouteImport } from './routes/email/index'
 import { Route as E2eIndexRouteImport } from './routes/e2e/index'
 import { Route as DbIndexRouteImport } from './routes/db/index'
+import { Route as ChatIndexRouteImport } from './routes/chat/index'
 import { Route as ApiIndexRouteImport } from './routes/api/index'
 
 const IndexRoute = IndexRouteImport.update({
@@ -65,6 +66,11 @@ const DbIndexRoute = DbIndexRouteImport.update({
   path: '/db/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChatIndexRoute = ChatIndexRouteImport.update({
+  id: '/chat/',
+  path: '/chat/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiIndexRoute = ApiIndexRouteImport.update({
   id: '/api/',
   path: '/api/',
@@ -74,6 +80,7 @@ const ApiIndexRoute = ApiIndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/api/': typeof ApiIndexRoute
+  '/chat/': typeof ChatIndexRoute
   '/db/': typeof DbIndexRoute
   '/e2e/': typeof E2eIndexRoute
   '/email/': typeof EmailIndexRoute
@@ -86,6 +93,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/api': typeof ApiIndexRoute
+  '/chat': typeof ChatIndexRoute
   '/db': typeof DbIndexRoute
   '/e2e': typeof E2eIndexRoute
   '/email': typeof EmailIndexRoute
@@ -99,6 +107,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/api/': typeof ApiIndexRoute
+  '/chat/': typeof ChatIndexRoute
   '/db/': typeof DbIndexRoute
   '/e2e/': typeof E2eIndexRoute
   '/email/': typeof EmailIndexRoute
@@ -113,6 +122,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/api/'
+    | '/chat/'
     | '/db/'
     | '/e2e/'
     | '/email/'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/api'
+    | '/chat'
     | '/db'
     | '/e2e'
     | '/email'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/api/'
+    | '/chat/'
     | '/db/'
     | '/e2e/'
     | '/email/'
@@ -150,6 +162,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ApiIndexRoute: typeof ApiIndexRoute
+  ChatIndexRoute: typeof ChatIndexRoute
   DbIndexRoute: typeof DbIndexRoute
   E2eIndexRoute: typeof E2eIndexRoute
   EmailIndexRoute: typeof EmailIndexRoute
@@ -225,6 +238,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DbIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chat/': {
+      id: '/chat/'
+      path: '/chat'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof ChatIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/': {
       id: '/api/'
       path: '/api'
@@ -238,6 +258,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiIndexRoute: ApiIndexRoute,
+  ChatIndexRoute: ChatIndexRoute,
   DbIndexRoute: DbIndexRoute,
   E2eIndexRoute: E2eIndexRoute,
   EmailIndexRoute: EmailIndexRoute,
