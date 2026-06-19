@@ -37,6 +37,13 @@ export const ContextSchema = z.object({
   testFile: z.string().nullable().optional(),
 });
 
+export interface SnapshotEntry {
+  id: string;
+  name: string;
+  createdAt: number;
+  context: Context;
+}
+
 export const IncomingMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("cf_agent_use_chat_request"),
@@ -59,6 +66,10 @@ export const IncomingMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("update_context"),
     context: ContextSchema,
+  }),
+  z.object({
+    type: z.literal("save_snapshot"),
+    name: z.string().min(1).max(80),
   }),
 ]);
 

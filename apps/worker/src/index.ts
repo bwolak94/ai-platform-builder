@@ -29,6 +29,28 @@ export default {
       return json({ status: "ok", service: "ai-builder" });
     }
 
+    // ─── Snapshot REST API ─────────────────────────────────────────────────────
+    // GET  /api/snapshots/:mode        → list snapshots for that mode's DO
+    // POST /api/snapshots/:mode        → save a new snapshot
+    // DELETE /api/snapshots/:mode/:id  → delete a snapshot
+    if (url.pathname.startsWith("/api/snapshots/")) {
+      const parts = url.pathname.split("/"); // ['', 'api', 'snapshots', mode, ?id]
+      const mode = parts[3];
+      const snapshotId = parts[4];
+
+      if (!mode) return json({ error: "mode required" }, 400);
+
+      const doId = env.BuilderAgent.idFromName(mode);
+      const stub = env.BuilderAgent.get(doId);
+
+      // Rewrite to the DO's internal snapshot endpoint
+      const internalUrl = snapshotId
+        ? `http://do-internal/snapshots/${snapshotId}`
+        : `http://do-internal/snapshots`;
+
+      return stub.fetch(new Request(internalUrl, request));
+    }
+
     // Send test email via Resend
     if (url.pathname === "/api/email/send-test" && request.method === "POST") {
       if (!env.RESEND_API_KEY) {
