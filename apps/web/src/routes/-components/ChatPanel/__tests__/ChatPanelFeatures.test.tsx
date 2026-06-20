@@ -22,9 +22,9 @@ vi.mock("mermaid", () => ({
     // eslint-disable-next-line @typescript-eslint/no-empty-function
     initialize: () => {},
     render: (_id: string, _chart: string) =>
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       Promise.resolve({
         svg: "<svg>diagram</svg>",
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         bindFunctions: () => {},
         diagramType: "flowchart",
       }),
