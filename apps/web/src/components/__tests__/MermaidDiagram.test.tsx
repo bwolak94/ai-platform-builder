@@ -22,7 +22,11 @@ beforeEach(() => {
 
 describe("MermaidDiagram", () => {
   it("calls mermaid.render with the chart string", async () => {
-    mermaidMock.render.mockResolvedValue({ svg: "<svg>diagram</svg>", bindFunctions: vi.fn() });
+    mermaidMock.render.mockResolvedValue({
+      svg: "<svg>diagram</svg>",
+      bindFunctions: vi.fn(),
+      diagramType: "flowchart",
+    });
 
     render(<MermaidDiagram chart="graph TD; A-->B" />);
 
@@ -36,7 +40,11 @@ describe("MermaidDiagram", () => {
 
   it("injects rendered SVG into the container", async () => {
     const svgContent = "<svg><text>diagram</text></svg>";
-    mermaidMock.render.mockResolvedValue({ svg: svgContent, bindFunctions: vi.fn() });
+    mermaidMock.render.mockResolvedValue({
+      svg: svgContent,
+      bindFunctions: vi.fn(),
+      diagramType: "flowchart",
+    });
 
     const { container } = render(<MermaidDiagram chart="graph TD; A-->B" />);
 
@@ -71,7 +79,11 @@ describe("MermaidDiagram", () => {
   });
 
   it("applies custom className to the container", () => {
-    mermaidMock.render.mockResolvedValue({ svg: "<svg/>", bindFunctions: vi.fn() });
+    mermaidMock.render.mockResolvedValue({
+      svg: "<svg/>",
+      bindFunctions: vi.fn(),
+      diagramType: "flowchart",
+    });
 
     const { container } = render(<MermaidDiagram chart="graph TD; A-->B" className="my-class" />);
 
@@ -79,7 +91,11 @@ describe("MermaidDiagram", () => {
   });
 
   it("re-renders when chart prop changes", async () => {
-    mermaidMock.render.mockResolvedValue({ svg: "<svg/>", bindFunctions: vi.fn() });
+    mermaidMock.render.mockResolvedValue({
+      svg: "<svg/>",
+      bindFunctions: vi.fn(),
+      diagramType: "flowchart",
+    });
 
     const { rerender } = render(<MermaidDiagram chart="graph TD; A-->B" />);
     await waitFor(() => {

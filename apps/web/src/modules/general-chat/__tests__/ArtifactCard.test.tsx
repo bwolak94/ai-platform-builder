@@ -8,7 +8,13 @@ import type { Artifact } from "@/context/generalChat/GeneralChatContext";
 vi.mock("mermaid", () => ({
   default: {
     initialize: vi.fn(),
-    render: vi.fn().mockResolvedValue({ svg: "<svg>diagram</svg>", bindFunctions: vi.fn() }),
+    render: vi
+      .fn()
+      .mockResolvedValue({
+        svg: "<svg>diagram</svg>",
+        bindFunctions: vi.fn(),
+        diagramType: "flowchart",
+      }),
   },
 }));
 
