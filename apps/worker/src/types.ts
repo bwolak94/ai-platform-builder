@@ -51,6 +51,8 @@ export const ContextSchema = z.object({
   testFile: z.string().nullable().optional(),
   wordpressState: z.string().nullable().optional(),
   chatContext: z.string().nullable().optional(),
+  // Feature 3 — pinned messages injected into system prompt as persistent memory
+  memories: z.string().nullable().optional(),
 });
 
 export interface SnapshotEntry {

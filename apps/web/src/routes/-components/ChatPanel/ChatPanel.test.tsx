@@ -8,6 +8,8 @@ beforeAll(() => {
   window.HTMLElement.prototype.scrollIntoView = vi.fn();
 });
 
+const NOW = Date.now();
+
 const baseProps = {
   messages: [] as ChatMessage[],
   input: "",
@@ -16,19 +18,20 @@ const baseProps = {
   onInputChange: vi.fn(),
   onSubmit: vi.fn(),
   onClear: vi.fn(),
+  onStop: vi.fn(),
 };
 
 describe("ChatPanel", () => {
   it("shows placeholder when no messages", () => {
     render(<ChatPanel {...baseProps} />);
-    expect(screen.getByPlaceholderText("Ask the agent...")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Ask the agent… (⌘↵ to send)")).toBeInTheDocument();
     expect(screen.getByText(/Describe what you want to build/)).toBeInTheDocument();
   });
 
   it("renders user and assistant messages", () => {
     const messages: ChatMessage[] = [
-      { id: "1", role: "user", content: "Make a form" },
-      { id: "2", role: "assistant", content: "Sure, here it is" },
+      { id: "1", role: "user", content: "Make a form", timestamp: NOW },
+      { id: "2", role: "assistant", content: "Sure, here it is", timestamp: NOW },
     ];
     render(<ChatPanel {...baseProps} messages={messages} />);
     expect(screen.getByText("Make a form")).toBeInTheDocument();
@@ -61,14 +64,14 @@ describe("ChatPanel", () => {
   it("calls onInputChange when typing", async () => {
     const onInputChange = vi.fn();
     render(<ChatPanel {...baseProps} onInputChange={onInputChange} />);
-    await userEvent.type(screen.getByPlaceholderText("Ask the agent..."), "Hello");
+    await userEvent.type(screen.getByPlaceholderText("Ask the agent… (⌘↵ to send)"), "Hello");
     expect(onInputChange).toHaveBeenCalled();
   });
 
-  it("disables input and send button while loading", () => {
+  it("disables input while loading and shows Stop button", () => {
     render(<ChatPanel {...baseProps} isLoading={true} />);
-    expect(screen.getByPlaceholderText("Ask the agent...")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(screen.getByPlaceholderText("Ask the agent… (⌘↵ to send)")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Stop generation" })).toBeInTheDocument();
   });
 
   it("disables send button when input is empty", () => {

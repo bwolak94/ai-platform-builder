@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { cn } from "@/utils";
 import type { Artifact, ArtifactType } from "@/context/generalChat/GeneralChatContext";
 
@@ -24,6 +25,60 @@ function DiffLine({ line }: { line: string }) {
   );
 }
 
+// ─── Palette renderer ─────────────────────────────────────────────────────────
+
+interface PaletteEntry {
+  name?: string;
+  hex: string;
+  oklch?: string;
+  contrastOnWhite?: number;
+  contrastOnBlack?: number;
+}
+
+function PaletteRenderer({ content }: { content: string }) {
+  let palette: PaletteEntry[] = [];
+  try {
+    const parsed: unknown = JSON.parse(content);
+    if (Array.isArray(parsed)) {
+      palette = parsed as PaletteEntry[];
+    }
+  } catch {
+    return <pre className="p-3 font-mono text-xs">{content}</pre>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2 p-3">
+      {palette.map((entry, i) => (
+        <div key={i} className="flex flex-col items-center gap-1">
+          <div
+            className="h-10 w-10 rounded-md border border-black/10 shadow-sm dark:border-white/10"
+            style={{ backgroundColor: entry.hex }}
+            title={entry.hex}
+          />
+          <span className="text-foreground font-mono text-[10px]">{entry.hex}</span>
+          {entry.name && (
+            <span className="text-muted-foreground max-w-[48px] truncate text-center text-[9px]">
+              {entry.name}
+            </span>
+          )}
+          {entry.contrastOnWhite !== undefined && (
+            <span
+              className={cn(
+                "font-mono text-[9px]",
+                entry.contrastOnWhite >= 4.5
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-amber-600 dark:text-amber-400"
+              )}
+            >
+              {entry.contrastOnWhite.toFixed(1)}:1
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Badge colours by type ────────────────────────────────────────────────────
 
 const TYPE_BADGE: Record<ArtifactType, string> = {
@@ -32,6 +87,7 @@ const TYPE_BADGE: Record<ArtifactType, string> = {
   diff: "bg-orange-500/10 text-orange-400",
   data: "bg-blue-500/10 text-blue-400",
   text: "bg-muted text-muted-foreground",
+  palette: "bg-pink-500/10 text-pink-500",
 };
 
 const TYPE_LABEL: Record<ArtifactType, string> = {
@@ -40,6 +96,7 @@ const TYPE_LABEL: Record<ArtifactType, string> = {
   diff: "Diff",
   data: "Data",
   text: "Text",
+  palette: "Palette",
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -90,11 +147,19 @@ export function ArtifactCard({ artifact }: ArtifactCardProps) {
       </div>
 
       {/* Body */}
-      {artifact.type === "diff" ? (
+      {artifact.type === "mermaid" ? (
+        <div className="overflow-auto p-3">
+          <MermaidDiagram chart={artifact.content} />
+        </div>
+      ) : artifact.type === "diff" ? (
         <div className="max-h-64 overflow-auto py-1">
           {artifact.content.split("\n").map((line, i) => (
             <DiffLine key={i} line={line} />
           ))}
+        </div>
+      ) : artifact.type === "palette" ? (
+        <div className="max-h-48 overflow-auto">
+          <PaletteRenderer content={artifact.content} />
         </div>
       ) : (
         <pre className="text-foreground max-h-64 overflow-auto whitespace-pre-wrap break-words p-3 font-mono leading-relaxed">

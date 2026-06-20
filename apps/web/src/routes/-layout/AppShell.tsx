@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Outlet, useNavigate, useLocation } from "@tanstack/react-router";
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels";
 import { useMode } from "@/hooks";
@@ -8,6 +8,9 @@ import { useFormBuilderContext } from "@/context/formBuilder/FormBuilderContext"
 import { useLayoutBuilderContext } from "@/context/layoutBuilder/LayoutBuilderContext";
 import { useEmailBuilderContext } from "@/context/emailBuilder/EmailBuilderContext";
 import { useWordPressBuilderContext } from "@/context/wordpressBuilder/WordPressBuilderContext";
+import { useBranch } from "@/context/branches/BranchContext";
+import { usePinnedMessages } from "@/hooks/usePinnedMessages";
+import { useGeneralChatContext } from "@/context/generalChat/GeneralChatContext";
 import {
   serializeFormDSL,
   serializeLayoutDSL,
@@ -38,6 +41,18 @@ function AppShellInner() {
   const { template: emailTemplate } = useEmailBuilderContext();
   const { project: wpProject, setProject: setWpProject } = useWordPressBuilderContext();
 
+  // Feature 2 — Conversation branching
+  const { getBranches, getActiveBranchId, getAgentRoomName, fork, switchBranch } = useBranch();
+  const branches = getBranches(mode);
+  const activeBranchId = getActiveBranchId(mode);
+  const roomName = getAgentRoomName(mode);
+
+  // Feature 3 — Memory pins
+  const { modePins, pin, unpin } = usePinnedMessages(mode);
+  const { addArtifact } = useGeneralChatContext();
+
+  const pinnedIds = useMemo(() => new Set(modePins.map((p) => p.id)), [modePins]);
+
   const onToolCall = useCallback(
     (call: ToolCall) => {
       return dispatchRef.current(call);
@@ -54,9 +69,11 @@ function AppShellInner() {
     setInput,
     handleSubmit,
     clearMessages,
+    stop,
     sendContext,
   } = useBuilderAgent({
     mode,
+    roomName,
     onToolCall,
   });
 
@@ -71,6 +88,46 @@ function AppShellInner() {
   );
 
   useRegisterAgentActions({ setInput, sendMessage: submitMessage });
+
+  // Feature 3 — sync pinned messages into agent context (injected into system prompt)
+  useEffect(() => {
+    const memoryContents = modePins.map((p) => `[${p.role}] ${p.content}`);
+    sendContext({ memories: JSON.stringify(memoryContents) });
+  }, [modePins, sendContext]);
+
+  // Feature 1 — request summary to compress context window
+  const handleRequestSummary = useCallback(() => {
+    submitMessage(
+      "Please summarize our conversation so far into a compact, structured summary. " +
+        "Highlight key decisions, constraints, and context needed to continue effectively. " +
+        "Keep it under 300 words."
+    );
+  }, [submitMessage]);
+
+  // Feature 2 — fork and switch helpers bound to current mode
+  const handleFork = useCallback(() => {
+    fork(mode);
+  }, [fork, mode]);
+
+  const handleSwitchBranch = useCallback(
+    (id: string) => {
+      switchBranch(mode, id);
+    },
+    [switchBranch, mode]
+  );
+
+  // Feature 5 — save artifact from any code block in the chat
+  const handleSaveArtifact = useCallback(
+    (content: string, lang: string, title: string) => {
+      addArtifact({
+        type: lang === "mermaid" ? "mermaid" : "code",
+        title,
+        content,
+        language: lang || "text",
+      });
+    },
+    [addArtifact]
+  );
 
   // Sync form schema to agent context so system prompt stays accurate
   useEffect(() => {
@@ -183,6 +240,16 @@ function AppShellInner() {
               onInputChange={setInput}
               onSubmit={handleSubmit}
               onClear={clearMessages}
+              onStop={stop}
+              onRequestSummary={handleRequestSummary}
+              branches={branches}
+              activeBranchId={activeBranchId}
+              onFork={handleFork}
+              onSwitchBranch={handleSwitchBranch}
+              pinnedIds={pinnedIds}
+              onPin={pin}
+              onUnpin={unpin}
+              onSaveArtifact={handleSaveArtifact}
             />
           </Panel>
 

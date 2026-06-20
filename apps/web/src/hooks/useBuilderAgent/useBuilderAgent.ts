@@ -47,14 +47,20 @@ function extractContent(msg: UIMessage): string {
   return "";
 }
 
-function normalizeMessages(msgs: UIMessage[]): ChatMessage[] {
+function normalizeMessages(msgs: UIMessage[], timestampMap: Map<string, number>): ChatMessage[] {
   return msgs
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({
-      id: m.id,
-      role: m.role as "user" | "assistant",
-      content: extractContent(m),
-    }))
+    .map((m) => {
+      if (!timestampMap.has(m.id)) {
+        timestampMap.set(m.id, Date.now());
+      }
+      return {
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: extractContent(m),
+        timestamp: timestampMap.get(m.id) ?? Date.now(),
+      };
+    })
     .filter((m) => m.content.trim().length > 0);
 }
 
@@ -67,6 +73,7 @@ function toWsUrl(base: string): string {
 
 export function useBuilderAgent({
   mode,
+  roomName,
   onToolCall,
 }: UseBuilderAgentOptions): UseBuilderAgentReturn {
   const onToolCallRef = useRef(onToolCall);
@@ -75,15 +82,17 @@ export function useBuilderAgent({
   // Track processed toolCallIds to prevent duplicate addToolOutput calls caused
   // by stream replay when the WebSocket reconnects (e.g. Vite HMR)
   const processedToolCallIds = useRef<Set<string>>(new Set());
+  // Track first-seen timestamps per message ID
+  const timestampMap = useRef<Map<string, number>>(new Map());
   const inputRef = useRef("");
   const [input, setInputState] = useState("");
 
   const agentHost = useMemo(() => (AGENT_URL ? toWsUrl(AGENT_URL) : undefined), []);
 
-  // Each mode gets its own DO room so conversations are isolated
+  // Each mode gets its own DO room. Pass roomName to override for branch isolation.
   const agent = useAgent({
     agent: "builder-agent",
-    name: mode,
+    name: roomName ?? mode,
     ...(agentHost ? { host: agentHost } : {}),
   }) as unknown as {
     send: (msg: string) => void;
@@ -91,12 +100,7 @@ export function useBuilderAgent({
     removeEventListener: (e: string, h: (ev: MessageEvent) => void) => void;
   };
 
-  const {
-    messages: rawMessages,
-    sendMessage,
-    clearHistory,
-    status,
-  } = useAgentChat({
+  const chatHook = useAgentChat({
     agent: agent as unknown as Parameters<typeof useAgentChat>[0]["agent"],
     onToolCall: useCallback(
       async ({
@@ -129,10 +133,20 @@ export function useBuilderAgent({
 
       [setActiveToolCall]
     ),
-  });
+  }) as unknown as {
+    messages: UIMessage[];
+    sendMessage: (msg: { role: string; parts: { type: string; text: string }[] }) => Promise<void>;
+    clearHistory: () => void;
+    status: string;
+    stop?: () => void;
+  };
+
+  const { messages: rawMessages, sendMessage, clearHistory, status } = chatHook;
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const stop = chatHook.stop ?? function noop() {};
 
   const messages = useMemo(
-    () => normalizeMessages(rawMessages as unknown as UIMessage[]),
+    () => normalizeMessages(rawMessages, timestampMap.current),
     [rawMessages]
   );
 
@@ -171,6 +185,7 @@ export function useBuilderAgent({
 
   const clearMessages = useCallback(() => {
     processedToolCallIds.current.clear();
+    timestampMap.current.clear();
     clearHistory();
   }, [clearHistory]);
 
@@ -180,6 +195,7 @@ export function useBuilderAgent({
     setInput,
     handleSubmit,
     clearMessages,
+    stop,
     isLoading,
     status: status as AgentStatus,
     activeToolCall,

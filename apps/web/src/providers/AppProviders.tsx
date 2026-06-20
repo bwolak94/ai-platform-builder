@@ -6,6 +6,7 @@ import { EmailBuilderProvider } from "@/context/emailBuilder/EmailBuilderContext
 import { WordPressBuilderProvider } from "@/context/wordpressBuilder/WordPressBuilderContext";
 import { GeneralChatProvider } from "@/context/generalChat/GeneralChatContext";
 import { AgentActionsProvider } from "@/context/agentActions/AgentActionsProvider";
+import { BranchProvider } from "@/context/branches/BranchContext";
 import type { AppProvidersProps } from "./AppProviders.types";
 
 export function AppProviders({ children }: AppProvidersProps) {
@@ -13,15 +14,17 @@ export function AppProviders({ children }: AppProvidersProps) {
     <ModeProvider>
       <ToolDispatchProvider>
         <AgentActionsProvider>
-          <FormBuilderProvider>
-            <LayoutBuilderProvider>
-              <EmailBuilderProvider>
-                <WordPressBuilderProvider>
-                  <GeneralChatProvider>{children}</GeneralChatProvider>
-                </WordPressBuilderProvider>
-              </EmailBuilderProvider>
-            </LayoutBuilderProvider>
-          </FormBuilderProvider>
+          <BranchProvider>
+            <FormBuilderProvider>
+              <LayoutBuilderProvider>
+                <EmailBuilderProvider>
+                  <WordPressBuilderProvider>
+                    <GeneralChatProvider>{children}</GeneralChatProvider>
+                  </WordPressBuilderProvider>
+                </EmailBuilderProvider>
+              </LayoutBuilderProvider>
+            </FormBuilderProvider>
+          </BranchProvider>
         </AgentActionsProvider>
       </ToolDispatchProvider>
     </ModeProvider>

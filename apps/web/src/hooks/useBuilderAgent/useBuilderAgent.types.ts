@@ -11,10 +11,13 @@ export interface ChatMessage {
   id: string;
   role: "user" | "assistant" | "tool";
   content: string;
+  timestamp: number;
 }
 
 export interface UseBuilderAgentOptions {
   mode: BuilderMode;
+  /** Override the DO room name (used for conversation branching). Defaults to `mode`. */
+  roomName?: string;
   onToolCall?: (call: ToolCall) => Promise<ToolResult>;
 }
 
@@ -26,6 +29,7 @@ export interface UseBuilderAgentReturn {
   setInput: (value: string) => void;
   handleSubmit: (e?: React.SyntheticEvent) => void;
   clearMessages: () => void;
+  stop: () => void;
   isLoading: boolean;
   status: AgentStatus;
   activeToolCall: string | null;
