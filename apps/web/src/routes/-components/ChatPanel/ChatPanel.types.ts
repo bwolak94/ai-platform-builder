@@ -11,4 +11,5 @@ export interface ChatPanelProps {
   onInputChange: (value: string) => void;
   onSubmit: (e?: React.SyntheticEvent) => void;
   onClear: () => void;
+  onStop: () => void;
 }

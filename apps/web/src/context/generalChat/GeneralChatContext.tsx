@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ArtifactType = "code" | "mermaid" | "diff" | "data" | "text";
+export type ArtifactType = "code" | "mermaid" | "diff" | "data" | "text" | "palette";
 
 export interface Artifact {
   id: string;

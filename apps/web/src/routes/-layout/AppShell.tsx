@@ -54,6 +54,7 @@ function AppShellInner() {
     setInput,
     handleSubmit,
     clearMessages,
+    stop,
     sendContext,
   } = useBuilderAgent({
     mode,
@@ -183,6 +184,7 @@ function AppShellInner() {
               onInputChange={setInput}
               onSubmit={handleSubmit}
               onClear={clearMessages}
+              onStop={stop}
             />
           </Panel>
 

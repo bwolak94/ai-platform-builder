@@ -1,11 +1,22 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback, useMemo, type KeyboardEvent } from "react";
 import ReactMarkdown from "react-markdown";
-import { Trash2, Sparkles } from "lucide-react";
+import {
+  Trash2,
+  Sparkles,
+  Copy,
+  Check,
+  Download,
+  Square,
+  Search,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/utils";
+import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { ToolCallStatus } from "../ToolCallStatus";
 import type { ChatPanelProps } from "./ChatPanel.types";
-import type { AgentStatus } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
+import type { AgentStatus, ChatMessage } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 import type { BuilderMode } from "@/types";
 
 // ─── Per-mode hints ───────────────────────────────────────────────────────────
@@ -247,7 +258,214 @@ const HINTS: Record<BuilderMode, ModeHints> = {
   },
 };
 
-// ─── Thinking indicator ───────────────────────────────────────────────────────
+const INITIAL_PROMPT_COUNT = 6;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTimestamp(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function prettifyTool(name: string): string {
+  return name
+    .replace(/([A-Z])/g, " $1")
+    .toLowerCase()
+    .trim();
+}
+
+/** Replace bare #rrggbb hex codes in a text string with swatch+code nodes. */
+function processColorSwatches(text: string): React.ReactNode[] {
+  const HEX = /#([0-9a-fA-F]{6})\b/g;
+  const nodes: React.ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = HEX.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    const hex = m[0];
+    nodes.push(
+      <span key={m.index} className="inline-flex items-center gap-1 align-middle">
+        <span
+          className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-black/20 dark:border-white/20"
+          style={{ backgroundColor: hex }}
+          aria-hidden="true"
+        />
+        <code className="rounded bg-black/10 px-1 text-[11px] dark:bg-white/10">{hex}</code>
+      </span>
+    );
+    last = m.index + hex.length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
+}
+
+/** Recursively process children, injecting color swatches into string nodes. */
+function injectSwatches(children: React.ReactNode): React.ReactNode {
+  if (typeof children === "string") {
+    const nodes = processColorSwatches(children);
+    return nodes.length === 1 && typeof nodes[0] === "string" ? nodes[0] : nodes;
+  }
+  if (Array.isArray(children)) {
+    return (children as React.ReactNode[]).map((child, i) => {
+      const result = injectSwatches(child);
+      if (result !== child) return <span key={i}>{result}</span>;
+      return child;
+    });
+  }
+  return children;
+}
+
+// ─── CopyButton ───────────────────────────────────────────────────────────────
+
+function CopyButton({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => {
+        setCopied(false);
+      }, 1500);
+    });
+  }, [text]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? "Copied" : "Copy to clipboard"}
+      className={cn(
+        "rounded p-0.5 transition-colors",
+        "text-muted-foreground hover:text-foreground",
+        className
+      )}
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+// ─── Code block renderer ──────────────────────────────────────────────────────
+
+function CodeBlock({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const match = /language-(\w+)/.exec(className);
+  const lang = match?.[1] ?? "";
+  const raw = (typeof children === "string" ? children : "").replace(/\n$/, "");
+
+  // Mermaid — render as diagram
+  if (lang === "mermaid") {
+    return (
+      <div className="my-2 overflow-hidden rounded-md border">
+        <div className="bg-muted/40 flex items-center gap-2 border-b px-3 py-1">
+          <span className="text-muted-foreground font-mono text-[10px]">mermaid</span>
+          <CopyButton text={raw} className="ml-auto" />
+        </div>
+        <div className="p-3">
+          <MermaidDiagram chart={raw} />
+        </div>
+      </div>
+    );
+  }
+
+  // Fenced block — styled with language badge + copy
+  if (className) {
+    return (
+      <div className="my-2 overflow-hidden rounded-md border">
+        <div className="bg-muted/40 flex items-center gap-2 border-b px-3 py-1">
+          {lang && <span className="text-muted-foreground font-mono text-[10px]">{lang}</span>}
+          <CopyButton text={raw} className="ml-auto" />
+        </div>
+        <pre className="overflow-auto p-3 text-xs leading-relaxed">
+          <code>{children}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  // Inline code
+  return (
+    <code className="rounded bg-black/10 px-1 font-mono text-xs dark:bg-white/10">{children}</code>
+  );
+}
+
+// ─── MessageBubble ────────────────────────────────────────────────────────────
+
+function MessageBubble({ msg }: { msg: ChatMessage }) {
+  const isUser = msg.role === "user";
+
+  return (
+    <div className={cn("group flex flex-col gap-0.5", isUser ? "items-end" : "items-start")}>
+      <div
+        className={cn(
+          "relative max-w-[85%] rounded-lg px-3 py-2 text-sm",
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+        )}
+      >
+        {isUser ? (
+          <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+        ) : (
+          <ReactMarkdown
+            components={{
+              p: ({ children }) => <p className="mb-1 last:mb-0">{injectSwatches(children)}</p>,
+              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+              em: ({ children }) => <em className="italic">{children}</em>,
+              ul: ({ children }) => <ul className="mb-1 list-disc pl-4">{children}</ul>,
+              ol: ({ children }) => <ol className="mb-1 list-decimal pl-4">{children}</ol>,
+              li: ({ children }) => <li className="mb-0.5">{children}</li>,
+              a: ({ href, children }) => (
+                <a
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2 hover:opacity-80"
+                >
+                  {children}
+                </a>
+              ),
+              code: ({ className: cls, children: ch }) => (
+                <CodeBlock className={cls ?? ""}>{ch}</CodeBlock>
+              ),
+              pre: ({ children }) => <>{children}</>,
+              blockquote: ({ children }) => (
+                <blockquote className="border-l-2 border-current pl-3 italic opacity-70">
+                  {children}
+                </blockquote>
+              ),
+              hr: () => <hr className="my-2 border-current opacity-20" />,
+            }}
+          >
+            {msg.content}
+          </ReactMarkdown>
+        )}
+
+        {/* Copy button — appears on hover */}
+        <div
+          className={cn(
+            "absolute -top-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100",
+            isUser ? "left-2" : "right-2"
+          )}
+        >
+          <CopyButton
+            text={msg.content}
+            className="bg-background rounded-sm border p-0.5 shadow-sm"
+          />
+        </div>
+      </div>
+
+      {/* Timestamp */}
+      <span className="text-muted-foreground px-1 text-[10px]">
+        {formatTimestamp(msg.timestamp)}
+      </span>
+    </div>
+  );
+}
+
+// ─── ThinkingIndicator ────────────────────────────────────────────────────────
 
 type ThinkingPhase = "thinking" | "applying" | "responding";
 
@@ -275,13 +493,6 @@ const PHASE_CONFIG: Record<ThinkingPhase, { label: string; color: string; dotCol
   },
 };
 
-function prettifyTool(name: string): string {
-  return name
-    .replace(/([A-Z])/g, " $1")
-    .toLowerCase()
-    .trim();
-}
-
 function ThinkingIndicator({
   status,
   activeToolCall,
@@ -292,17 +503,31 @@ function ThinkingIndicator({
   const phase = getPhase(status, activeToolCall);
   const { label, color, dotColor } = PHASE_CONFIG[phase];
 
-  const [elapsed, setElapsed] = useState(0);
+  const [phaseElapsed, setPhaseElapsed] = useState(0);
+  const [totalElapsed, setTotalElapsed] = useState(0);
   const phaseKey = phase + (activeToolCall ?? "");
+
+  // Phase timer — resets on phase change
   useEffect(() => {
-    setElapsed(0);
+    setPhaseElapsed(0);
     const id = setInterval(() => {
-      setElapsed((s) => s + 1);
+      setPhaseElapsed((s) => s + 1);
     }, 1000);
     return () => {
       clearInterval(id);
     };
   }, [phaseKey]);
+
+  // Total timer — runs from component mount (= when loading starts)
+  useEffect(() => {
+    setTotalElapsed(0);
+    const id = setInterval(() => {
+      setTotalElapsed((s) => s + 1);
+    }, 1000);
+    return () => {
+      clearInterval(id);
+    };
+  }, []);
 
   return (
     <div className="bg-muted mr-auto max-w-[85%] rounded-lg px-3 py-2.5 text-sm">
@@ -320,13 +545,16 @@ function ThinkingIndicator({
         {activeToolCall && (
           <span className="text-muted-foreground text-xs">· {prettifyTool(activeToolCall)}</span>
         )}
-        <span className="text-muted-foreground ml-auto font-mono text-[10px]">{elapsed}s</span>
+        <span className="text-muted-foreground ml-auto font-mono text-[10px]">
+          {String(phaseElapsed)}s
+          {totalElapsed !== phaseElapsed ? ` / ${String(totalElapsed)}s total` : ""}
+        </span>
       </div>
     </div>
   );
 }
 
-// ─── Empty state with hints ───────────────────────────────────────────────────
+// ─── EmptyState with search + shuffle + show more ─────────────────────────────
 
 function EmptyState({
   mode,
@@ -336,6 +564,23 @@ function EmptyState({
   onPrompt: (text: string) => void;
 }) {
   const hints = mode ? HINTS[mode] : null;
+  const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState("");
+
+  // Shuffle once per mode change
+  const shuffled = useMemo(
+    () => (hints ? [...hints.prompts].sort(() => Math.random() - 0.5) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mode]
+  );
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return shuffled;
+    const q = query.toLowerCase();
+    return shuffled.filter((p) => p.toLowerCase().includes(q));
+  }, [shuffled, query]);
+
+  const displayed = showAll ? filtered : filtered.slice(0, INITIAL_PROMPT_COUNT);
 
   if (!hints) {
     return (
@@ -355,24 +600,68 @@ function EmptyState({
         <p className="text-muted-foreground text-xs">{hints.tagline}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        {hints.prompts.map((prompt) => (
-          <button
-            key={prompt}
-            type="button"
-            onClick={() => {
-              onPrompt(prompt);
-            }}
-            className={cn(
-              "border-border hover:border-primary hover:bg-muted/60 group w-full rounded-lg border px-3 py-2 text-left transition-colors"
-            )}
-          >
-            <span className="text-foreground/80 group-hover:text-foreground line-clamp-2 text-xs leading-relaxed">
-              {prompt}
-            </span>
-          </button>
-        ))}
+      {/* Search filter */}
+      <div className="relative">
+        <Search className="text-muted-foreground absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setShowAll(false);
+          }}
+          placeholder="Filter prompts..."
+          className={cn(
+            "w-full rounded-md border bg-transparent py-1.5 pl-7 pr-3 text-xs",
+            "placeholder:text-muted-foreground focus:ring-ring focus:outline-none focus:ring-1"
+          )}
+        />
       </div>
+
+      <div className="flex flex-col gap-1.5">
+        {displayed.length === 0 ? (
+          <p className="text-muted-foreground py-4 text-center text-xs">No matching prompts.</p>
+        ) : (
+          displayed.map((prompt) => (
+            <button
+              key={prompt}
+              type="button"
+              onClick={() => {
+                onPrompt(prompt);
+              }}
+              className={cn(
+                "border-border hover:border-primary hover:bg-muted/60 group w-full rounded-lg border px-3 py-2 text-left transition-colors"
+              )}
+            >
+              <span className="text-foreground/80 group-hover:text-foreground line-clamp-2 text-xs leading-relaxed">
+                {prompt}
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Show more / less toggle */}
+      {filtered.length > INITIAL_PROMPT_COUNT && (
+        <button
+          type="button"
+          onClick={() => {
+            setShowAll((v) => !v);
+          }}
+          className="text-muted-foreground hover:text-foreground flex items-center justify-center gap-1 text-xs transition-colors"
+        >
+          {showAll ? (
+            <>
+              <ChevronUp className="h-3 w-3" /> Show less
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" /> Show{" "}
+              {String(filtered.length - INITIAL_PROMPT_COUNT)} more
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 }
@@ -389,28 +678,76 @@ export function ChatPanel({
   onInputChange,
   onSubmit,
   onClear,
+  onStop,
 }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Auto-resize textarea
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${String(Math.min(el.scrollHeight, 160))}px`;
+  }, [input]);
+
+  // Cmd/Ctrl+Enter to submit; Enter for newline
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      if (!isLoading && input.trim()) onSubmit();
+    }
+  }
+
   function handleHintClick(prompt: string) {
     onInputChange(prompt);
-    // Auto-focus the input so the user can tweak and submit
-    setTimeout(() => {
-      const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-        "form input, form textarea"
-      );
-      input?.focus();
-    }, 0);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
+
+  // Export conversation as markdown
+  function handleExport() {
+    const ts = new Date().toLocaleString();
+    const md = [
+      `# Chat Export — ${ts}`,
+      "",
+      ...messages.map((m) =>
+        [
+          `**${m.role === "user" ? "You" : "Assistant"}** · ${formatTimestamp(m.timestamp)}`,
+          "",
+          m.content,
+          "",
+          "---",
+          "",
+        ].join("\n")
+      ),
+    ].join("\n");
+
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `chat-export-${Date.now().toString()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return (
     <div className="flex h-full flex-col">
       {messages.length > 0 && (
-        <div className="flex justify-end border-b px-3 py-1">
+        <div className="flex items-center justify-end gap-1 border-b px-3 py-1">
+          <button
+            onClick={handleExport}
+            title="Export conversation"
+            aria-label="Export conversation as markdown"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+          </button>
           <button
             onClick={onClear}
             disabled={isLoading}
@@ -427,40 +764,9 @@ export function ChatPanel({
         {messages.length === 0 ? (
           <EmptyState mode={mode} onPrompt={handleHintClick} />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={cn(
-                  "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground ml-auto"
-                    : "bg-muted text-foreground mr-auto"
-                )}
-              >
-                {msg.role === "user" ? (
-                  msg.content
-                ) : (
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
-                      strong: ({ children }) => (
-                        <strong className="font-semibold">{children}</strong>
-                      ),
-                      ul: ({ children }) => <ul className="mb-1 list-disc pl-4">{children}</ul>,
-                      ol: ({ children }) => <ol className="mb-1 list-decimal pl-4">{children}</ol>,
-                      li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                      code: ({ children }) => (
-                        <code className="rounded bg-black/10 px-1 font-mono text-xs dark:bg-white/10">
-                          {children}
-                        </code>
-                      ),
-                    }}
-                  >
-                    {msg.content}
-                  </ReactMarkdown>
-                )}
-              </div>
+              <MessageBubble key={msg.id} msg={msg} />
             ))}
           </div>
         )}
@@ -480,32 +786,58 @@ export function ChatPanel({
             <ToolCallStatus toolName={activeToolCall} />
           </div>
         )}
+
         <form onSubmit={onSubmit} className="flex gap-2">
-          <input
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => {
               onInputChange(e.target.value);
             }}
-            placeholder="Ask the agent..."
+            onKeyDown={handleKeyDown}
+            placeholder="Ask the agent… (⌘↵ to send)"
             disabled={isLoading}
+            rows={1}
             className={cn(
-              "flex-1 rounded-md border bg-transparent px-3 py-2 text-sm",
+              "flex-1 resize-none overflow-hidden rounded-md border bg-transparent px-3 py-2 text-sm",
               "placeholder:text-muted-foreground focus:ring-ring focus:outline-none focus:ring-1",
-              "disabled:cursor-not-allowed disabled:opacity-50"
+              "disabled:cursor-not-allowed disabled:opacity-50",
+              "max-h-40 min-h-[38px]"
             )}
           />
-          <button
-            type="submit"
-            disabled={isLoading || !input.trim()}
-            className={cn(
-              "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              "bg-primary text-primary-foreground hover:bg-primary/90",
-              "disabled:cursor-not-allowed disabled:opacity-50"
-            )}
-          >
-            Send
-          </button>
+
+          {isLoading ? (
+            <button
+              type="button"
+              onClick={onStop}
+              title="Stop generation"
+              aria-label="Stop generation"
+              className={cn(
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "bg-destructive/10 text-destructive hover:bg-destructive/20",
+                "border-destructive/30 border"
+              )}
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className={cn(
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "bg-primary text-primary-foreground hover:bg-primary/90",
+                "disabled:cursor-not-allowed disabled:opacity-50"
+              )}
+            >
+              Send
+            </button>
+          )}
         </form>
+
+        <p className="text-muted-foreground mt-1.5 text-right text-[10px]">
+          ⌘↵ to send · Enter for newline
+        </p>
       </div>
     </div>
   );

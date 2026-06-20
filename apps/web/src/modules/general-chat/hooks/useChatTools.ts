@@ -233,6 +233,23 @@ export function useChatTools() {
           return { result, operation };
         }
 
+        // ── palette (visual swatch display) ─────────────────────────────────────
+        // colorPalette is a server tool, but addPaletteArtifact is called client-side
+        // when the agent explicitly invokes the client-side palette display tool.
+        case "addPaletteArtifact": {
+          const { palette, title } = call.args as {
+            palette: unknown;
+            title?: string;
+          };
+          const content = typeof palette === "string" ? palette : JSON.stringify(palette, null, 2);
+          addArtifact({
+            type: "palette",
+            title: title ?? "Color Palette",
+            content,
+          });
+          return { displayed: true };
+        }
+
         default:
           return { error: `Unknown chat tool: ${call.toolName}` };
       }

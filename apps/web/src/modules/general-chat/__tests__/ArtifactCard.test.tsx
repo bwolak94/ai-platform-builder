@@ -4,6 +4,14 @@ import userEvent from "@testing-library/user-event";
 import { ArtifactCard } from "../ArtifactCard";
 import type { Artifact } from "@/context/generalChat/GeneralChatContext";
 
+// Mock mermaid so diagram rendering doesn't crash in jsdom
+vi.mock("mermaid", () => ({
+  default: {
+    initialize: vi.fn(),
+    render: vi.fn().mockResolvedValue({ svg: "<svg>diagram</svg>", bindFunctions: vi.fn() }),
+  },
+}));
+
 // ─── Mock navigator.clipboard ─────────────────────────────────────────────────
 
 const writeTextMock = vi.fn().mockResolvedValue(undefined);
@@ -107,6 +115,42 @@ describe("ArtifactCard", () => {
       expect(writeTextMock).toHaveBeenCalled();
     });
     expect(screen.getByRole("button", { name: "Copy artifact content" })).toBeInTheDocument();
+  });
+
+  it("renders Palette badge for palette type", () => {
+    const palette = JSON.stringify([{ hex: "#ff0000", name: "Red", contrastOnWhite: 3.5 }]);
+    render(<ArtifactCard artifact={makeArtifact({ type: "palette", content: palette })} />);
+    expect(screen.getByText("Palette")).toBeInTheDocument();
+  });
+
+  it("renders color swatches for palette type with hex codes", () => {
+    const palette = JSON.stringify([
+      { hex: "#0066ff", name: "Blue", contrastOnWhite: 5.2 },
+      { hex: "#ff3300", name: "Red", contrastOnWhite: 4.0 },
+    ]);
+    render(<ArtifactCard artifact={makeArtifact({ type: "palette", content: palette })} />);
+    expect(screen.getByText("#0066ff")).toBeInTheDocument();
+    expect(screen.getByText("#ff3300")).toBeInTheDocument();
+  });
+
+  it("renders palette contrast ratio with pass indicator when >= 4.5", () => {
+    const palette = JSON.stringify([{ hex: "#000000", name: "Black", contrastOnWhite: 21 }]);
+    render(<ArtifactCard artifact={makeArtifact({ type: "palette", content: palette })} />);
+    expect(screen.getByText("21.0:1")).toBeInTheDocument();
+  });
+
+  it("falls back to pre block for palette when content is not valid JSON", () => {
+    render(<ArtifactCard artifact={makeArtifact({ type: "palette", content: "not json" })} />);
+    expect(screen.getByText("not json")).toBeInTheDocument();
+  });
+
+  it("renders MermaidDiagram container for mermaid type", async () => {
+    const { container } = render(
+      <ArtifactCard artifact={makeArtifact({ type: "mermaid", content: "graph TD; A-->B" })} />
+    );
+    await waitFor(() => {
+      expect(container.querySelector("svg")).toBeInTheDocument();
+    });
   });
 
   it("displays a formatted timestamp", () => {
