@@ -23,29 +23,54 @@ const DSL_KEY: Record<BuilderMode, keyof Context> = {
   chat: "chatContext",
 };
 
+function buildMemoriesBlock(memoriesJson: string | null | undefined): string {
+  if (!memoriesJson) return "";
+  try {
+    const pins = JSON.parse(memoriesJson) as string[];
+    if (!Array.isArray(pins) || pins.length === 0) return "";
+    const lines = pins.map((p, i) => `${String(i + 1)}. ${p}`).join("\n");
+    return `\n\n## Pinned Memory\nThe user has pinned the following messages as persistent context. Always keep these in mind:\n${lines}`;
+  } catch {
+    return "";
+  }
+}
+
 export function buildSystemPrompt(mode: BuilderMode, context: Context): string {
   const dsl = context[DSL_KEY[mode]];
 
+  let base: string;
   switch (mode) {
     case "form":
-      return buildFormSystemPrompt(dsl);
+      base = buildFormSystemPrompt(dsl);
+      break;
     case "layout":
-      return buildLayoutSystemPrompt(dsl);
+      base = buildLayoutSystemPrompt(dsl);
+      break;
     case "api":
-      return buildApiSystemPrompt(dsl);
+      base = buildApiSystemPrompt(dsl);
+      break;
     case "db":
-      return buildDbSystemPrompt(dsl);
+      base = buildDbSystemPrompt(dsl);
+      break;
     case "email":
-      return buildEmailSystemPrompt(dsl);
+      base = buildEmailSystemPrompt(dsl);
+      break;
     case "story":
-      return buildStorySystemPrompt(dsl);
+      base = buildStorySystemPrompt(dsl);
+      break;
     case "i18n":
-      return buildI18nSystemPrompt(dsl);
+      base = buildI18nSystemPrompt(dsl);
+      break;
     case "e2e":
-      return buildE2eSystemPrompt(dsl);
+      base = buildE2eSystemPrompt(dsl);
+      break;
     case "wordpress":
-      return buildWordPressSystemPrompt(dsl);
+      base = buildWordPressSystemPrompt(dsl);
+      break;
     case "chat":
-      return buildChatSystemPrompt(dsl);
+      base = buildChatSystemPrompt(dsl);
+      break;
   }
+
+  return base + buildMemoriesBlock(context.memories);
 }

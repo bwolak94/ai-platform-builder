@@ -1,4 +1,13 @@
-import { useRef, useEffect, useState, useCallback, useMemo, type KeyboardEvent } from "react";
+import {
+  useRef,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+  createContext,
+  useContext,
+  type KeyboardEvent,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import {
   Trash2,
@@ -10,14 +19,30 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Pin,
+  PinOff,
+  GitBranch,
+  GitFork,
+  Save,
+  AlertTriangle,
+  Zap,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/utils";
 import { MermaidDiagram } from "@/components/MermaidDiagram";
 import { ToolCallStatus } from "../ToolCallStatus";
+import { useTokenGauge } from "@/hooks/useTokenGauge";
 import type { ChatPanelProps } from "./ChatPanel.types";
 import type { AgentStatus, ChatMessage } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 import type { BuilderMode } from "@/types";
+
+// ─── Internal context (avoids prop-drilling through ReactMarkdown) ────────────
+
+interface ChatPanelInternalContext {
+  onSaveArtifact: ((content: string, lang: string, title: string) => void) | undefined;
+}
+
+const ChatPanelCtx = createContext<ChatPanelInternalContext>({ onSaveArtifact: undefined });
 
 // ─── Per-mode hints ───────────────────────────────────────────────────────────
 
@@ -346,6 +371,39 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
 
 // ─── Code block renderer ──────────────────────────────────────────────────────
 
+function SaveArtifactButton({
+  content,
+  lang,
+  title,
+}: {
+  content: string;
+  lang: string;
+  title: string;
+}) {
+  const { onSaveArtifact } = useContext(ChatPanelCtx);
+  const [saved, setSaved] = useState(false);
+
+  if (!onSaveArtifact) return null;
+
+  return (
+    <button
+      type="button"
+      aria-label="Save as artifact"
+      title="Save as artifact"
+      onClick={() => {
+        onSaveArtifact(content, lang, title);
+        setSaved(true);
+        setTimeout(() => {
+          setSaved(false);
+        }, 1500);
+      }}
+      className="text-muted-foreground hover:text-foreground rounded p-0.5 transition-colors"
+    >
+      {saved ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Save className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
 function CodeBlock({
   className = "",
   children,
@@ -363,7 +421,10 @@ function CodeBlock({
       <div className="my-2 overflow-hidden rounded-md border">
         <div className="bg-muted/40 flex items-center gap-2 border-b px-3 py-1">
           <span className="text-muted-foreground font-mono text-[10px]">mermaid</span>
-          <CopyButton text={raw} className="ml-auto" />
+          <div className="ml-auto flex items-center gap-1">
+            <SaveArtifactButton content={raw} lang="mermaid" title="Mermaid Diagram" />
+            <CopyButton text={raw} />
+          </div>
         </div>
         <div className="p-3">
           <MermaidDiagram chart={raw} />
@@ -372,13 +433,20 @@ function CodeBlock({
     );
   }
 
-  // Fenced block — styled with language badge + copy
+  // Fenced block — styled with language badge + copy + save
   if (className) {
     return (
       <div className="my-2 overflow-hidden rounded-md border">
         <div className="bg-muted/40 flex items-center gap-2 border-b px-3 py-1">
           {lang && <span className="text-muted-foreground font-mono text-[10px]">{lang}</span>}
-          <CopyButton text={raw} className="ml-auto" />
+          <div className="ml-auto flex items-center gap-1">
+            <SaveArtifactButton
+              content={raw}
+              lang={lang}
+              title={lang ? `${lang} snippet` : "Code"}
+            />
+            <CopyButton text={raw} />
+          </div>
         </div>
         <pre className="overflow-auto p-3 text-xs leading-relaxed">
           <code>{children}</code>
@@ -395,7 +463,14 @@ function CodeBlock({
 
 // ─── MessageBubble ────────────────────────────────────────────────────────────
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+interface MessageBubbleProps {
+  msg: ChatMessage;
+  isPinned: boolean;
+  onPin: (msg: ChatMessage) => void;
+  onUnpin: (id: string) => void;
+}
+
+function MessageBubble({ msg, isPinned, onPin, onUnpin }: MessageBubbleProps) {
   const isUser = msg.role === "user";
 
   return (
@@ -403,7 +478,8 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       <div
         className={cn(
           "relative max-w-[85%] rounded-lg px-3 py-2 text-sm",
-          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+          isUser ? "bg-primary text-primary-foreground" : "bg-muted text-foreground",
+          isPinned && "ring-primary/40 ring-1"
         )}
       >
         {isUser ? (
@@ -443,13 +519,33 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           </ReactMarkdown>
         )}
 
-        {/* Copy button — appears on hover */}
+        {/* Action buttons — appear on hover */}
         <div
           className={cn(
             "absolute -top-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100",
             isUser ? "left-2" : "right-2"
           )}
         >
+          {/* Pin / Unpin */}
+          <button
+            type="button"
+            aria-label={isPinned ? "Unpin message" : "Pin message to memory"}
+            title={isPinned ? "Unpin from memory" : "Pin to memory"}
+            onClick={() => {
+              if (isPinned) {
+                onUnpin(msg.id);
+              } else {
+                onPin(msg);
+              }
+            }}
+            className="bg-background rounded-sm border p-0.5 shadow-sm transition-colors"
+          >
+            {isPinned ? (
+              <PinOff className="text-primary h-3.5 w-3.5" />
+            ) : (
+              <Pin className="text-muted-foreground hover:text-foreground h-3.5 w-3.5" />
+            )}
+          </button>
           <CopyButton
             text={msg.content}
             className="bg-background rounded-sm border p-0.5 shadow-sm"
@@ -457,10 +553,16 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         </div>
       </div>
 
-      {/* Timestamp */}
-      <span className="text-muted-foreground px-1 text-[10px]">
-        {formatTimestamp(msg.timestamp)}
-      </span>
+      {/* Timestamp + pin indicator */}
+      <div className={cn("flex items-center gap-1 px-1", isUser ? "flex-row-reverse" : "flex-row")}>
+        <span className="text-muted-foreground text-[10px]">{formatTimestamp(msg.timestamp)}</span>
+        {isPinned && (
+          <span className="text-primary flex items-center gap-0.5 text-[10px]">
+            <Pin className="h-2.5 w-2.5" />
+            pinned
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -666,6 +768,114 @@ function EmptyState({
   );
 }
 
+// ─── TokenGaugeBar ────────────────────────────────────────────────────────────
+
+function TokenGaugeBar({
+  pct,
+  isWarning,
+  isCritical,
+}: {
+  pct: number;
+  isWarning: boolean;
+  isCritical: boolean;
+}) {
+  const barColor = isCritical ? "bg-destructive" : isWarning ? "bg-amber-500" : "bg-primary/40";
+  const label = `${String(Math.round(pct * 100))}% context used`;
+
+  return (
+    <div className="flex items-center gap-1.5" title={label} aria-label={label}>
+      <Zap
+        className={cn(
+          "h-3 w-3 shrink-0",
+          isCritical ? "text-destructive" : isWarning ? "text-amber-500" : "text-muted-foreground"
+        )}
+      />
+      <div className="bg-muted h-1 w-16 overflow-hidden rounded-full">
+        <div
+          className={cn("h-full rounded-full transition-all duration-500", barColor)}
+          style={{ width: `${String(Math.round(pct * 100))}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── BranchSelector ───────────────────────────────────────────────────────────
+
+function BranchSelector({
+  branches,
+  activeBranchId,
+  onFork,
+  onSwitchBranch,
+}: {
+  branches: NonNullable<ChatPanelProps["branches"]>;
+  activeBranchId: string;
+  onFork: () => void;
+  onSwitchBranch: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeBranch = branches.find((b) => b.id === activeBranchId);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((v) => !v);
+        }}
+        title="Conversation branches"
+        aria-label="Conversation branches"
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
+      >
+        <GitBranch className="h-3.5 w-3.5" />
+        <span className="max-w-[80px] truncate text-[10px]">{activeBranch?.label ?? "main"}</span>
+      </button>
+
+      {open && (
+        <div className="bg-popover border-border absolute left-0 top-6 z-50 min-w-[180px] rounded-md border shadow-md">
+          <div className="border-b px-2 py-1.5">
+            <p className="text-muted-foreground text-[10px] font-medium uppercase tracking-wide">
+              Branches
+            </p>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
+            {branches.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => {
+                  onSwitchBranch(b.id);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "hover:bg-muted w-full px-3 py-1.5 text-left text-xs transition-colors",
+                  b.id === activeBranchId && "text-primary font-semibold"
+                )}
+              >
+                {b.id === activeBranchId ? "● " : "○ "}
+                {b.label}
+              </button>
+            ))}
+          </div>
+          <div className="border-t px-2 py-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                onFork();
+                setOpen(false);
+              }}
+              className="text-primary hover:text-primary/80 flex w-full items-center gap-1.5 text-xs transition-colors"
+            >
+              <GitFork className="h-3 w-3" />
+              Fork conversation
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ChatPanel ────────────────────────────────────────────────────────────────
 
 export function ChatPanel({
@@ -679,9 +889,21 @@ export function ChatPanel({
   onSubmit,
   onClear,
   onStop,
+  onRequestSummary,
+  branches,
+  activeBranchId,
+  onFork,
+  onSwitchBranch,
+  pinnedIds,
+  onPin,
+  onUnpin,
+  onSaveArtifact,
 }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Feature 1 — token gauge
+  const gauge = useTokenGauge(messages);
 
   // Auto-scroll on new messages
   useEffect(() => {
@@ -736,109 +958,174 @@ export function ChatPanel({
     URL.revokeObjectURL(url);
   }
 
+  const handlePin = useCallback(
+    (msg: ChatMessage) => {
+      onPin?.(msg);
+    },
+    [onPin]
+  );
+
+  const handleUnpin = useCallback(
+    (id: string) => {
+      onUnpin?.(id);
+    },
+    [onUnpin]
+  );
+
+  const hasBranches = branches && branches.length > 0 && onFork && onSwitchBranch;
+
   return (
-    <div className="flex h-full flex-col">
-      {messages.length > 0 && (
-        <div className="flex items-center justify-end gap-1 border-b px-3 py-1">
-          <button
-            onClick={handleExport}
-            title="Export conversation"
-            aria-label="Export conversation as markdown"
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={onClear}
-            disabled={isLoading}
-            title="Clear conversation"
-            aria-label="Clear conversation"
-            className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
-
-      <ScrollArea className="flex-1 overflow-y-auto p-4">
-        {messages.length === 0 ? (
-          <EmptyState mode={mode} onPrompt={handleHintClick} />
-        ) : (
-          <div className="flex flex-col gap-4">
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} msg={msg} />
-            ))}
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="mt-3">
-            <ThinkingIndicator status={status} activeToolCall={activeToolCall} />
-          </div>
-        )}
-
-        <div ref={bottomRef} />
-      </ScrollArea>
-
-      <div className="border-t p-3">
-        {activeToolCall && (
-          <div className="mb-2">
-            <ToolCallStatus toolName={activeToolCall} />
-          </div>
-        )}
-
-        <form onSubmit={onSubmit} className="flex gap-2">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => {
-              onInputChange(e.target.value);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder="Ask the agent… (⌘↵ to send)"
-            disabled={isLoading}
-            rows={1}
-            className={cn(
-              "flex-1 resize-none overflow-hidden rounded-md border bg-transparent px-3 py-2 text-sm",
-              "placeholder:text-muted-foreground focus:ring-ring focus:outline-none focus:ring-1",
-              "disabled:cursor-not-allowed disabled:opacity-50",
-              "max-h-40 min-h-[38px]"
+    <ChatPanelCtx.Provider value={{ onSaveArtifact }}>
+      <div className="flex h-full flex-col">
+        {messages.length > 0 && (
+          <div className="flex items-center gap-2 border-b px-3 py-1">
+            {/* Feature 2 — Branch selector */}
+            {hasBranches && activeBranchId !== undefined && (
+              <BranchSelector
+                branches={branches}
+                activeBranchId={activeBranchId}
+                onFork={onFork}
+                onSwitchBranch={onSwitchBranch}
+              />
             )}
-          />
 
-          {isLoading ? (
-            <button
-              type="button"
-              onClick={onStop}
-              title="Stop generation"
-              aria-label="Stop generation"
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                "bg-destructive/10 text-destructive hover:bg-destructive/20",
-                "border-destructive/30 border"
+            <div className="ml-auto flex items-center gap-2">
+              {/* Feature 1 — Token gauge */}
+              {messages.length > 0 && (
+                <TokenGaugeBar
+                  pct={gauge.pct}
+                  isWarning={gauge.isWarning}
+                  isCritical={gauge.isCritical}
+                />
               )}
-            >
-              <Square className="h-4 w-4 fill-current" />
-            </button>
+
+              <button
+                onClick={handleExport}
+                title="Export conversation"
+                aria-label="Export conversation as markdown"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={onClear}
+                disabled={isLoading}
+                title="Clear conversation"
+                aria-label="Clear conversation"
+                className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-40"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Feature 1 — Critical context warning banner */}
+        {gauge.isCritical && messages.length > 0 && (
+          <div className="border-destructive/30 bg-destructive/5 flex items-center gap-2 border-b px-3 py-1.5">
+            <AlertTriangle className="text-destructive h-3.5 w-3.5 shrink-0" />
+            <p className="text-destructive flex-1 text-[11px]">
+              Context window {String(Math.round(gauge.pct * 100))}% full — responses may be
+              truncated.
+            </p>
+            {onRequestSummary && (
+              <button
+                type="button"
+                onClick={onRequestSummary}
+                className="text-destructive hover:text-destructive/80 shrink-0 text-[11px] font-medium underline underline-offset-2 transition-colors"
+              >
+                Compress history
+              </button>
+            )}
+          </div>
+        )}
+
+        <ScrollArea className="flex-1 overflow-y-auto p-4">
+          {messages.length === 0 ? (
+            <EmptyState mode={mode} onPrompt={handleHintClick} />
           ) : (
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                "bg-primary text-primary-foreground hover:bg-primary/90",
-                "disabled:cursor-not-allowed disabled:opacity-50"
-              )}
-            >
-              Send
-            </button>
+            <div className="flex flex-col gap-4">
+              {messages.map((msg) => (
+                <MessageBubble
+                  key={msg.id}
+                  msg={msg}
+                  isPinned={pinnedIds?.has(msg.id) ?? false}
+                  onPin={handlePin}
+                  onUnpin={handleUnpin}
+                />
+              ))}
+            </div>
           )}
-        </form>
 
-        <p className="text-muted-foreground mt-1.5 text-right text-[10px]">
-          ⌘↵ to send · Enter for newline
-        </p>
+          {isLoading && (
+            <div className="mt-3">
+              <ThinkingIndicator status={status} activeToolCall={activeToolCall} />
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </ScrollArea>
+
+        <div className="border-t p-3">
+          {activeToolCall && (
+            <div className="mb-2">
+              <ToolCallStatus toolName={activeToolCall} />
+            </div>
+          )}
+
+          <form onSubmit={onSubmit} className="flex gap-2">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => {
+                onInputChange(e.target.value);
+              }}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask the agent… (⌘↵ to send)"
+              disabled={isLoading}
+              rows={1}
+              className={cn(
+                "flex-1 resize-none overflow-hidden rounded-md border bg-transparent px-3 py-2 text-sm",
+                "placeholder:text-muted-foreground focus:ring-ring focus:outline-none focus:ring-1",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+                "max-h-40 min-h-[38px]"
+              )}
+            />
+
+            {isLoading ? (
+              <button
+                type="button"
+                onClick={onStop}
+                title="Stop generation"
+                aria-label="Stop generation"
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "bg-destructive/10 text-destructive hover:bg-destructive/20",
+                  "border-destructive/30 border"
+                )}
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className={cn(
+                  "rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  "bg-primary text-primary-foreground hover:bg-primary/90",
+                  "disabled:cursor-not-allowed disabled:opacity-50"
+                )}
+              >
+                Send
+              </button>
+            )}
+          </form>
+
+          <p className="text-muted-foreground mt-1.5 text-right text-[10px]">
+            ⌘↵ to send · Enter for newline
+          </p>
+        </div>
       </div>
-    </div>
+    </ChatPanelCtx.Provider>
   );
 }

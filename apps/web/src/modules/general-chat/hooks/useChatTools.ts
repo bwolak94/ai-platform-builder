@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { useGeneralChatContext } from "@/context/generalChat/GeneralChatContext";
+import { workerPool } from "@/hooks/useWorkerPool";
 import type { ToolCall } from "@/hooks/useBuilderAgent/useBuilderAgent.types";
 
 type ToolResult = Record<string, unknown>;
@@ -86,40 +87,22 @@ export function useChatTools() {
   const dispatch = useCallback(
     async (call: ToolCall): Promise<ToolResult> => {
       switch (call.toolName) {
-        // ── runCode ─────────────────────────────────────────────────────────────
+        // ── runCode — sandboxed in a Web Worker (pool of 2, 5s timeout) ─────────
         case "runCode": {
           const { code, label } = call.args as { code: string; label?: string };
-          const logs: string[] = [];
-          const origLog = console.log;
-          try {
-            // Capture console.log output — restore in finally to avoid console leak
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            console.log = (...args: any[]) => {
-              logs.push(args.map(String).join(" "));
-            };
-            // eslint-disable-next-line @typescript-eslint/no-implied-eval
-            const fn = new Function(code) as () => unknown;
-            const returned = fn();
-
-            const output =
-              [...logs, returned !== undefined ? `→ ${JSON.stringify(returned)}` : ""]
-                .filter(Boolean)
-                .join("\n") || "(no output)";
-
-            addArtifact({
-              type: "code",
-              title: label ?? "Code Output",
-              content: output,
-              language: "text",
-            });
-            return { output };
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : "Execution failed";
-            addArtifact({ type: "text", title: "Execution Error", content: msg });
-            return { error: msg };
-          } finally {
-            console.log = origLog;
+          const result = await workerPool.run(code);
+          if (result.error) {
+            addArtifact({ type: "text", title: "Execution Error", content: result.error });
+            return { error: result.error };
           }
+          const output = result.output ?? "(no output)";
+          addArtifact({
+            type: "code",
+            title: label ?? "Code Output",
+            content: output,
+            language: "text",
+          });
+          return { output };
         }
 
         // ── transformJson ────────────────────────────────────────────────────────

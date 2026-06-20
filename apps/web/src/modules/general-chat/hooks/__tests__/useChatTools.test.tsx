@@ -3,6 +3,34 @@ import { renderHook, act } from "@testing-library/react";
 import { GeneralChatProvider } from "@/context/generalChat/GeneralChatContext";
 import { useChatTools } from "../useChatTools";
 
+// ─── Mock workerPool ──────────────────────────────────────────────────────────
+// Web Workers are unavailable in JSDOM — mock the pool to execute code inline.
+vi.mock("@/hooks/useWorkerPool", () => {
+  const runInline = (code: string): Promise<{ output?: string; error?: string }> => {
+    const logs: string[] = [];
+    const origLog = console.log;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    console.log = (...args: any[]) => {
+      logs.push(args.map(String).join(" "));
+    };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-implied-eval
+      const fn = new Function(code) as () => unknown;
+      const returned = fn();
+      const lines = [...logs];
+      if (returned !== undefined) lines.push(`\u2192 ${JSON.stringify(returned)}`);
+      const output = lines.filter(Boolean).join("\n") || "(no output)";
+      return Promise.resolve({ output });
+    } catch (err) {
+      return Promise.resolve({ error: err instanceof Error ? err.message : "Execution failed" });
+    } finally {
+      console.log = origLog;
+    }
+  };
+
+  return { workerPool: { run: runInline } };
+});
+
 // ─── Mock crypto.subtle ────────────────────────────────────────────────────────
 
 Object.defineProperty(global, "crypto", {

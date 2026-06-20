@@ -73,6 +73,7 @@ function toWsUrl(base: string): string {
 
 export function useBuilderAgent({
   mode,
+  roomName,
   onToolCall,
 }: UseBuilderAgentOptions): UseBuilderAgentReturn {
   const onToolCallRef = useRef(onToolCall);
@@ -88,10 +89,10 @@ export function useBuilderAgent({
 
   const agentHost = useMemo(() => (AGENT_URL ? toWsUrl(AGENT_URL) : undefined), []);
 
-  // Each mode gets its own DO room so conversations are isolated
+  // Each mode gets its own DO room. Pass roomName to override for branch isolation.
   const agent = useAgent({
     agent: "builder-agent",
-    name: mode,
+    name: roomName ?? mode,
     ...(agentHost ? { host: agentHost } : {}),
   }) as unknown as {
     send: (msg: string) => void;

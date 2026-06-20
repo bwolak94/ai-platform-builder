@@ -16,6 +16,8 @@ export interface ChatMessage {
 
 export interface UseBuilderAgentOptions {
   mode: BuilderMode;
+  /** Override the DO room name (used for conversation branching). Defaults to `mode`. */
+  roomName?: string;
   onToolCall?: (call: ToolCall) => Promise<ToolResult>;
 }
 
