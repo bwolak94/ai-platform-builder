@@ -1176,7 +1176,7 @@ export function ChatPanel({
   // ── @-mention detection ──────────────────────────────────────────────────────
   const atQuery = useMemo(() => {
     const match = /@(\w*)$/.exec(input);
-    return match ? match[1].toLowerCase() : null;
+    return match ? (match[1] ?? "").toLowerCase() : null;
   }, [input]);
 
   const filteredSlots = useMemo(() => {
@@ -1281,7 +1281,7 @@ export function ChatPanel({
                   isPinned={pinnedIds?.has(msg.id) ?? false}
                   onPin={handlePin}
                   onUnpin={handleUnpin}
-                  onEditAndResubmit={onEditAndResubmit}
+                  {...(onEditAndResubmit ? { onEditAndResubmit } : {})}
                 />
               ))}
             </div>
