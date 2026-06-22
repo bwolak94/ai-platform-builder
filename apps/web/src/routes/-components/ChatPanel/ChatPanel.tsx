@@ -26,6 +26,10 @@ import {
   Save,
   AlertTriangle,
   Zap,
+  Pencil,
+  X,
+  Star,
+  AtSign,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/utils";
@@ -468,10 +472,36 @@ interface MessageBubbleProps {
   isPinned: boolean;
   onPin: (msg: ChatMessage) => void;
   onUnpin: (id: string) => void;
+  onEditAndResubmit?: (content: string) => void;
 }
 
-function MessageBubble({ msg, isPinned, onPin, onUnpin }: MessageBubbleProps) {
+function MessageBubble({ msg, isPinned, onPin, onUnpin, onEditAndResubmit }: MessageBubbleProps) {
   const isUser = msg.role === "user";
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(msg.content);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  function handleEditStart() {
+    setEditValue(msg.content);
+    setIsEditing(true);
+    requestAnimationFrame(() => {
+      editRef.current?.focus();
+      editRef.current?.select();
+    });
+  }
+
+  function handleEditConfirm() {
+    const trimmed = editValue.trim();
+    if (trimmed) {
+      onEditAndResubmit?.(trimmed);
+    }
+    setIsEditing(false);
+  }
+
+  function handleEditCancel() {
+    setEditValue(msg.content);
+    setIsEditing(false);
+  }
 
   return (
     <div className={cn("group flex flex-col gap-0.5", isUser ? "items-end" : "items-start")}>
@@ -482,7 +512,51 @@ function MessageBubble({ msg, isPinned, onPin, onUnpin }: MessageBubbleProps) {
           isPinned && "ring-primary/40 ring-1"
         )}
       >
-        {isUser ? (
+        {/* Edit mode for user messages */}
+        {isUser && isEditing ? (
+          <div className="flex flex-col gap-2">
+            <textarea
+              ref={editRef}
+              value={editValue}
+              onChange={(e) => {
+                setEditValue(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleEditConfirm();
+                }
+                if (e.key === "Escape") {
+                  handleEditCancel();
+                }
+              }}
+              rows={3}
+              className={cn(
+                "w-full resize-none rounded border bg-white/10 px-2 py-1 text-sm",
+                "focus:outline-none focus:ring-1 focus:ring-white/40",
+                "placeholder:text-white/40"
+              )}
+            />
+            <div className="flex justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={handleEditCancel}
+                className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] opacity-70 transition-opacity hover:opacity-100"
+              >
+                <X className="h-3 w-3" />
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleEditConfirm}
+                className="flex items-center gap-1 rounded bg-white/20 px-2 py-0.5 text-[11px] transition-colors hover:bg-white/30"
+              >
+                <Check className="h-3 w-3" />
+                Regenerate
+              </button>
+            </div>
+          </div>
+        ) : isUser ? (
           <p className="whitespace-pre-wrap break-words">{msg.content}</p>
         ) : (
           <ReactMarkdown
@@ -519,38 +593,52 @@ function MessageBubble({ msg, isPinned, onPin, onUnpin }: MessageBubbleProps) {
           </ReactMarkdown>
         )}
 
-        {/* Action buttons — appear on hover */}
-        <div
-          className={cn(
-            "absolute -top-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100",
-            isUser ? "left-2" : "right-2"
-          )}
-        >
-          {/* Pin / Unpin */}
-          <button
-            type="button"
-            aria-label={isPinned ? "Unpin message" : "Pin message to memory"}
-            title={isPinned ? "Unpin from memory" : "Pin to memory"}
-            onClick={() => {
-              if (isPinned) {
-                onUnpin(msg.id);
-              } else {
-                onPin(msg);
-              }
-            }}
-            className="bg-background rounded-sm border p-0.5 shadow-sm transition-colors"
-          >
-            {isPinned ? (
-              <PinOff className="text-primary h-3.5 w-3.5" />
-            ) : (
-              <Pin className="text-muted-foreground hover:text-foreground h-3.5 w-3.5" />
+        {/* Action buttons — appear on hover (hidden while editing) */}
+        {!isEditing && (
+          <div
+            className={cn(
+              "absolute -top-2 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100",
+              isUser ? "left-2" : "right-2"
             )}
-          </button>
-          <CopyButton
-            text={msg.content}
-            className="bg-background rounded-sm border p-0.5 shadow-sm"
-          />
-        </div>
+          >
+            {/* Edit (user messages only) */}
+            {isUser && onEditAndResubmit && (
+              <button
+                type="button"
+                aria-label="Edit message"
+                title="Edit and regenerate"
+                onClick={handleEditStart}
+                className="bg-background rounded-sm border p-0.5 shadow-sm transition-colors"
+              >
+                <Pencil className="text-muted-foreground hover:text-foreground h-3.5 w-3.5" />
+              </button>
+            )}
+            {/* Pin / Unpin */}
+            <button
+              type="button"
+              aria-label={isPinned ? "Unpin message" : "Pin message to memory"}
+              title={isPinned ? "Unpin from memory" : "Pin to memory"}
+              onClick={() => {
+                if (isPinned) {
+                  onUnpin(msg.id);
+                } else {
+                  onPin(msg);
+                }
+              }}
+              className="bg-background rounded-sm border p-0.5 shadow-sm transition-colors"
+            >
+              {isPinned ? (
+                <PinOff className="text-primary h-3.5 w-3.5" />
+              ) : (
+                <Pin className="text-muted-foreground hover:text-foreground h-3.5 w-3.5" />
+              )}
+            </button>
+            <CopyButton
+              text={msg.content}
+              className="bg-background rounded-sm border p-0.5 shadow-sm"
+            />
+          </div>
+        )}
       </div>
 
       {/* Timestamp + pin indicator */}
@@ -656,6 +744,40 @@ function ThinkingIndicator({
   );
 }
 
+// ─── useFavoritePrompts ───────────────────────────────────────────────────────
+
+function useFavoritePrompts(mode: BuilderMode | undefined) {
+  const storageKey = `chat-fav-${mode ?? "default"}`;
+
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored ? (JSON.parse(stored) as string[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const toggle = useCallback(
+    (prompt: string) => {
+      setFavorites((prev) => {
+        const next = prev.includes(prompt) ? prev.filter((p) => p !== prompt) : [prompt, ...prev];
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(next));
+        } catch {
+          // quota exceeded or private mode — silently ignore
+        }
+        return next;
+      });
+    },
+    [storageKey]
+  );
+
+  const isFavorite = useCallback((prompt: string) => favorites.includes(prompt), [favorites]);
+
+  return { favorites, toggle, isFavorite };
+}
+
 // ─── EmptyState with search + shuffle + show more ─────────────────────────────
 
 function EmptyState({
@@ -668,6 +790,7 @@ function EmptyState({
   const hints = mode ? HINTS[mode] : null;
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState("");
+  const { favorites, toggle, isFavorite } = useFavoritePrompts(mode);
 
   // Shuffle once per mode change
   const shuffled = useMemo(
@@ -682,7 +805,15 @@ function EmptyState({
     return shuffled.filter((p) => p.toLowerCase().includes(q));
   }, [shuffled, query]);
 
-  const displayed = showAll ? filtered : filtered.slice(0, INITIAL_PROMPT_COUNT);
+  // Exclude favorited prompts from the main list so they don't appear twice
+  const filteredNonFavorites = useMemo(
+    () => filtered.filter((p) => !isFavorite(p)),
+    [filtered, isFavorite]
+  );
+
+  const displayed = showAll
+    ? filteredNonFavorites
+    : filteredNonFavorites.slice(0, INITIAL_PROMPT_COUNT);
 
   if (!hints) {
     return (
@@ -720,31 +851,45 @@ function EmptyState({
         />
       </div>
 
+      {/* Favorites section */}
+      {favorites.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p className="text-muted-foreground flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide">
+            <Star className="h-2.5 w-2.5 fill-current text-amber-500" />
+            Favorites
+          </p>
+          {favorites
+            .filter((p) => !query.trim() || p.toLowerCase().includes(query.toLowerCase()))
+            .map((prompt) => (
+              <PromptChip
+                key={`fav-${prompt}`}
+                prompt={prompt}
+                isFavorite={true}
+                onPrompt={onPrompt}
+                onToggleFavorite={toggle}
+              />
+            ))}
+        </div>
+      )}
+
       <div className="flex flex-col gap-1.5">
-        {displayed.length === 0 ? (
+        {displayed.length === 0 && favorites.length === 0 ? (
           <p className="text-muted-foreground py-4 text-center text-xs">No matching prompts.</p>
-        ) : (
+        ) : displayed.length === 0 ? null : (
           displayed.map((prompt) => (
-            <button
+            <PromptChip
               key={prompt}
-              type="button"
-              onClick={() => {
-                onPrompt(prompt);
-              }}
-              className={cn(
-                "border-border hover:border-primary hover:bg-muted/60 group w-full rounded-lg border px-3 py-2 text-left transition-colors"
-              )}
-            >
-              <span className="text-foreground/80 group-hover:text-foreground line-clamp-2 text-xs leading-relaxed">
-                {prompt}
-              </span>
-            </button>
+              prompt={prompt}
+              isFavorite={isFavorite(prompt)}
+              onPrompt={onPrompt}
+              onToggleFavorite={toggle}
+            />
           ))
         )}
       </div>
 
       {/* Show more / less toggle */}
-      {filtered.length > INITIAL_PROMPT_COUNT && (
+      {filteredNonFavorites.length > INITIAL_PROMPT_COUNT && (
         <button
           type="button"
           onClick={() => {
@@ -759,11 +904,64 @@ function EmptyState({
           ) : (
             <>
               <ChevronDown className="h-3 w-3" /> Show{" "}
-              {String(filtered.length - INITIAL_PROMPT_COUNT)} more
+              {String(filteredNonFavorites.length - INITIAL_PROMPT_COUNT)} more
             </>
           )}
         </button>
       )}
+    </div>
+  );
+}
+
+// ─── PromptChip ───────────────────────────────────────────────────────────────
+
+function PromptChip({
+  prompt,
+  isFavorite,
+  onPrompt,
+  onToggleFavorite,
+}: {
+  prompt: string;
+  isFavorite: boolean;
+  onPrompt: (text: string) => void;
+  onToggleFavorite: (text: string) => void;
+}) {
+  return (
+    <div className="relative">
+      {/* Main prompt button — keeps rounded-lg for test compatibility */}
+      <button
+        type="button"
+        onClick={() => {
+          onPrompt(prompt);
+        }}
+        className={cn(
+          "border-border hover:border-primary hover:bg-muted/60 group w-full rounded-lg border px-3 py-2 pr-8 text-left transition-colors"
+        )}
+      >
+        <span className="text-foreground/80 group-hover:text-foreground line-clamp-2 text-xs leading-relaxed">
+          {prompt}
+        </span>
+      </button>
+      {/* Star button — absolutely positioned so it doesn't bubble to the prompt button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite(prompt);
+        }}
+        aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+        className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
+      >
+        <Star
+          className={cn(
+            "h-3 w-3 transition-colors",
+            isFavorite
+              ? "fill-amber-400 text-amber-400"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        />
+      </button>
     </div>
   );
 }
@@ -898,9 +1096,12 @@ export function ChatPanel({
   onPin,
   onUnpin,
   onSaveArtifact,
+  onEditAndResubmit,
+  contextSlots,
 }: ChatPanelProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [atMenuOpen, setAtMenuOpen] = useState(false);
 
   // Feature 1 — token gauge
   const gauge = useTokenGauge(messages);
@@ -971,6 +1172,34 @@ export function ChatPanel({
     },
     [onUnpin]
   );
+
+  // ── @-mention detection ──────────────────────────────────────────────────────
+  const atQuery = useMemo(() => {
+    const match = /@(\w*)$/.exec(input);
+    return match ? (match[1] ?? "").toLowerCase() : null;
+  }, [input]);
+
+  const filteredSlots = useMemo(() => {
+    if (atQuery === null || !contextSlots?.length) return [];
+    if (atQuery === "") return contextSlots;
+    return contextSlots.filter(
+      (s) => s.key.toLowerCase().includes(atQuery) || s.label.toLowerCase().includes(atQuery)
+    );
+  }, [atQuery, contextSlots]);
+
+  // Open/close @-menu based on filtered results
+  useEffect(() => {
+    setAtMenuOpen(filteredSlots.length > 0 && atQuery !== null);
+  }, [filteredSlots.length, atQuery]);
+
+  function injectContextSlot(slot: { key: string; label: string; value: string }) {
+    // Remove the @<query> trigger from the end of the input
+    const cleaned = input.replace(/@\w*$/, "").trimEnd();
+    const block = `\n\n[${slot.label}]:\n\`\`\`\n${slot.value}\n\`\`\``;
+    onInputChange(cleaned + block);
+    setAtMenuOpen(false);
+    setTimeout(() => textareaRef.current?.focus(), 0);
+  }
 
   const hasBranches = branches && branches.length > 0 && onFork && onSwitchBranch;
 
@@ -1052,6 +1281,7 @@ export function ChatPanel({
                   isPinned={pinnedIds?.has(msg.id) ?? false}
                   onPin={handlePin}
                   onUnpin={handleUnpin}
+                  {...(onEditAndResubmit ? { onEditAndResubmit } : {})}
                 />
               ))}
             </div>
@@ -1073,6 +1303,33 @@ export function ChatPanel({
             </div>
           )}
 
+          {/* @-mention context slot popover */}
+          {atMenuOpen && filteredSlots.length > 0 && (
+            <div className="bg-popover border-border mb-1 overflow-hidden rounded-md border shadow-md">
+              <div className="border-b px-2 py-1">
+                <p className="text-muted-foreground flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide">
+                  <AtSign className="h-2.5 w-2.5" />
+                  Inject context
+                </p>
+              </div>
+              {filteredSlots.map((slot) => (
+                <button
+                  key={slot.key}
+                  type="button"
+                  onMouseDown={(e) => {
+                    // Use mousedown so the textarea doesn't lose focus first
+                    e.preventDefault();
+                    injectContextSlot(slot);
+                  }}
+                  className="hover:bg-muted w-full px-3 py-1.5 text-left text-xs transition-colors"
+                >
+                  <span className="text-foreground font-medium">@{slot.key}</span>
+                  <span className="text-muted-foreground ml-2">{slot.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           <form onSubmit={onSubmit} className="flex gap-2">
             <textarea
               ref={textareaRef}
@@ -1081,7 +1338,11 @@ export function ChatPanel({
                 onInputChange(e.target.value);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Ask the agent… (⌘↵ to send)"
+              placeholder={
+                contextSlots?.length
+                  ? "Ask the agent… (⌘↵ to send · @ for context)"
+                  : "Ask the agent… (⌘↵ to send)"
+              }
               disabled={isLoading}
               rows={1}
               className={cn(
