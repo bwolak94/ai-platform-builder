@@ -129,6 +129,52 @@ function AppShellInner() {
     [addArtifact]
   );
 
+  // Feature 6 — inline message edit + regenerate
+  const handleEditAndResubmit = useCallback(
+    (content: string) => {
+      clearMessages();
+      // Give the WebSocket a tick to reset before sending the new message
+      setTimeout(() => {
+        setInput(content);
+        handleSubmit();
+      }, 50);
+    },
+    [clearMessages, setInput, handleSubmit]
+  );
+
+  // Feature 7 — @-mention context slot injection
+  const contextSlots = useMemo(() => {
+    const slots: { key: string; label: string; value: string }[] = [];
+    if (mode === "form") {
+      slots.push({ key: "schema", label: "Form Schema", value: serializeFormDSL(formSchema) });
+    }
+    if (mode === "layout") {
+      slots.push({ key: "layout", label: "Layout Tree", value: serializeLayoutDSL(layoutTree) });
+    }
+    if (mode === "email") {
+      slots.push({
+        key: "email",
+        label: "Email Template",
+        value: serializeEmailDSL(emailTemplate),
+      });
+    }
+    if (mode === "wordpress") {
+      slots.push({
+        key: "wordpress",
+        label: "WordPress Project",
+        value: serializeWordPressDSL(wpProject),
+      });
+    }
+    if (modePins.length > 0) {
+      slots.push({
+        key: "pins",
+        label: "Pinned Messages",
+        value: modePins.map((p) => `[${p.role}] ${p.content}`).join("\n\n"),
+      });
+    }
+    return slots;
+  }, [mode, formSchema, layoutTree, emailTemplate, wpProject, modePins]);
+
   // Sync form schema to agent context so system prompt stays accurate
   useEffect(() => {
     if (mode === "form") {
@@ -250,6 +296,8 @@ function AppShellInner() {
               onPin={pin}
               onUnpin={unpin}
               onSaveArtifact={handleSaveArtifact}
+              onEditAndResubmit={handleEditAndResubmit}
+              contextSlots={contextSlots}
             />
           </Panel>
 

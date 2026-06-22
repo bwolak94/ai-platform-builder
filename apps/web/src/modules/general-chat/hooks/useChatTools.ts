@@ -233,6 +233,24 @@ export function useChatTools() {
           return { displayed: true };
         }
 
+        // ── renderTable — structured tabular data display ─────────────────────
+        case "renderTable": {
+          const { headers, rows, title } = call.args as {
+            headers: string[];
+            rows: string[][];
+            title?: string;
+          };
+          if (!Array.isArray(headers) || !Array.isArray(rows)) {
+            return { error: "renderTable requires headers (string[]) and rows (string[][])" };
+          }
+          addArtifact({
+            type: "table",
+            title: title ?? "Table",
+            content: JSON.stringify({ headers, rows }, null, 2),
+          });
+          return { displayed: true, rows: rows.length, columns: headers.length };
+        }
+
         default:
           return { error: `Unknown chat tool: ${call.toolName}` };
       }

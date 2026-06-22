@@ -28,4 +28,8 @@ export interface ChatPanelProps {
   onUnpin?: (id: string) => void;
   // Feature 5 — Save artifact from code blocks
   onSaveArtifact?: (content: string, lang: string, title: string) => void;
+  // Feature 6 — Inline message edit + regenerate
+  onEditAndResubmit?: (content: string) => void;
+  // Feature 7 — @-mention context slot injection
+  contextSlots?: { key: string; label: string; value: string }[];
 }
